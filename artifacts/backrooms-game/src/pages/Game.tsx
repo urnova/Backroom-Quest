@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation, useParams } from "wouter";
 import { useGameStore } from "../context/GameContext";
+import { useSettings } from "../context/SettingsContext";
 import { BackroomsEngine } from "../game/BackroomsEngine";
 import { InputHandler } from "../game/InputHandler";
 import { AudioManager } from "../game/AudioManager";
@@ -9,11 +10,13 @@ import EmoteWheel from "../components/EmoteWheel";
 import ChatLog from "../components/ChatLog";
 import LevelBanner from "../components/LevelBanner";
 import CRTOverlay from "../components/CRTOverlay";
+import Tutorial, { shouldShowTutorial } from "../components/Tutorial";
 
 export default function Game() {
   const { code } = useParams();
   const [, setLocation] = useLocation();
   const { socket, playerId, gameState, levelConfig, hasWon } = useGameStore();
+  const { settings } = useSettings();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const engineRef = useRef<BackroomsEngine | null>(null);
@@ -27,7 +30,8 @@ export default function Game() {
   const [showBanner, setShowBanner] = useState(false);
   const [levelName, setLevelName] = useState("");
   const [showExitHint, setShowExitHint] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(shouldShowTutorial);
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     if (!gameState || !levelConfig) return;
@@ -40,7 +44,10 @@ export default function Game() {
       setTimeout(() => setShowBanner(false), 4000);
 
       if (engineRef.current) {
-        engineRef.current.loadLevel(levelConfig, gameState.roomCode + gameState.currentLevel);
+        engineRef.current.loadLevel(
+          levelConfig,
+          gameState.roomCode + gameState.currentLevel
+        );
       }
     }
   }, [gameState?.currentLevel, levelConfig]);
@@ -58,19 +65,21 @@ export default function Game() {
 
   useEffect(() => {
     if (!canvasRef.current || !socket || !playerId || !levelConfig || !gameState) return;
-
     if (engineRef.current) return;
-
-    setLoading(false);
 
     const audio = new AudioManager();
     audio.init();
     audioRef.current = audio;
 
-    const input = new InputHandler(canvasRef.current);
+    const input = new InputHandler(canvasRef.current, settings.keybindings);
     inputRef.current = input;
 
-    const engine = new BackroomsEngine(canvasRef.current, levelConfig, gameState.roomCode + gameState.currentLevel);
+    const engine = new BackroomsEngine(
+      canvasRef.current,
+      levelConfig,
+      gameState.roomCode + gameState.currentLevel,
+      settings.graphics.renderQuality
+    );
     engineRef.current = engine;
 
     input.onAttack = () => {
@@ -78,12 +87,7 @@ export default function Game() {
       const mobs = gameState?.mobs ?? [];
       const mobId = engine.getNearestMobInRange(mobs, 2.5);
       if (mobId) {
-        socket.emit("player:attack", {
-          code,
-          playerId,
-          mobId,
-          damage: 25,
-        });
+        socket.emit("player:attack", { code, playerId, mobId, damage: 25 });
       }
     };
 
@@ -102,11 +106,19 @@ export default function Game() {
       input.requestPointerLock();
     };
 
+    input.onEscape = () => {
+      if (input.isPointerLocked) {
+        input.exitPointerLock();
+        setIsPaused(true);
+      }
+    };
+
     let lastTime = performance.now();
     let moveTimer = 0;
+    let animId = 0;
 
     const loop = (time: number) => {
-      requestAnimationFrame(loop);
+      animId = requestAnimationFrame(loop);
       const dt = Math.min((time - lastTime) / 1000, 0.05);
       lastTime = time;
 
@@ -117,24 +129,14 @@ export default function Game() {
       if (moveTimer > 0.05) {
         moveTimer = 0;
         const pos = engineRef.current.getPlayerState();
-        socket.emit("player:move", {
-          code,
-          playerId,
-          x: pos.x,
-          y: pos.y,
-          angle: pos.angle,
-        });
+        socket.emit("player:move", { code, playerId, x: pos.x, y: pos.y, angle: pos.angle });
 
         if (!exitTriggeredRef.current && engineRef.current.isNearExit()) {
           exitTriggeredRef.current = true;
           setShowExitHint(false);
           socket.emit("level:complete", { code, playerId }, (ack: any) => {
-            if (ack?.error) {
-              exitTriggeredRef.current = false;
-            }
-            if (ack?.won) {
-              setLocation("/victory");
-            }
+            if (ack?.error) exitTriggeredRef.current = false;
+            if (ack?.won) setLocation("/victory");
           });
         } else if (!exitTriggeredRef.current && engineRef.current.getExitPosition()) {
           const exit = engineRef.current.getExitPosition()!;
@@ -145,18 +147,25 @@ export default function Game() {
       }
     };
 
-    requestAnimationFrame(loop);
-    input.requestPointerLock();
+    animId = requestAnimationFrame(loop);
+    if (!showTutorial) input.requestPointerLock();
+
+    return () => cancelAnimationFrame(animId);
   }, [canvasRef.current, socket, playerId, levelConfig, gameState?.roomCode]);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.updateKeybindings(settings.keybindings);
+    }
+  }, [settings.keybindings]);
 
   useEffect(() => {
     if (!engineRef.current || !gameState) return;
     engineRef.current.syncState(gameState, playerId ?? "");
 
-    const me = gameState.players.find(p => p.id === playerId);
+    const me = gameState.players.find((p) => p.id === playerId);
     if (me && audioRef.current) {
-      audioRef.current.setDangerLevel(1 - (me.sanity / 100));
-
+      audioRef.current.setDangerLevel(1 - me.sanity / 100);
       if (me.hp < prevHpRef.current) {
         engineRef.current.flashDamage();
       }
@@ -178,6 +187,16 @@ export default function Game() {
     if (inputRef.current) inputRef.current.requestPointerLock();
   };
 
+  const handleTutorialDone = () => {
+    setShowTutorial(false);
+    if (inputRef.current) inputRef.current.requestPointerLock();
+  };
+
+  const handleResume = () => {
+    setIsPaused(false);
+    if (inputRef.current) inputRef.current.requestPointerLock();
+  };
+
   if (!gameState || !levelConfig) {
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -186,7 +205,7 @@ export default function Game() {
     );
   }
 
-  const me = gameState.players.find(p => p.id === playerId);
+  const me = gameState.players.find((p) => p.id === playerId);
   if (!me) {
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -199,7 +218,7 @@ export default function Game() {
     <div className="absolute inset-0 bg-black overflow-hidden select-none">
       <canvas
         ref={canvasRef}
-        className={`absolute inset-0 w-full h-full ${me.sanity < 30 ? 'low-sanity' : ''}`}
+        className={`absolute inset-0 w-full h-full ${me.sanity < 30 ? "low-sanity" : ""}`}
       />
 
       <CRTOverlay />
@@ -239,6 +258,35 @@ export default function Game() {
       )}
 
       <div className="absolute top-1/2 left-1/2 w-1 h-1 bg-white/60 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20" />
+
+      {showTutorial && <Tutorial onDone={handleTutorialDone} />}
+
+      {isPaused && !showTutorial && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm pointer-events-auto">
+          <div className="border border-primary/40 bg-black/90 p-10 flex flex-col items-center gap-4 min-w-[280px]">
+            <h2 className="text-2xl font-title text-primary tracking-widest">PAUSE</h2>
+            <div className="w-full h-px bg-primary/20" />
+            <button
+              onClick={handleResume}
+              className="w-full px-6 py-3 border border-primary text-primary hover:bg-primary/20 uppercase tracking-widest font-mono text-sm transition-colors"
+            >
+              REPRENDRE
+            </button>
+            <button
+              onClick={() => { setShowTutorial(true); setIsPaused(false); }}
+              className="w-full px-6 py-3 border border-primary/30 text-primary/60 hover:text-primary hover:border-primary/60 uppercase tracking-widest font-mono text-sm transition-colors"
+            >
+              TUTORIEL
+            </button>
+            <button
+              onClick={() => setLocation("/")}
+              className="w-full px-6 py-3 border border-destructive/40 text-destructive/70 hover:text-destructive hover:border-destructive uppercase tracking-widest font-mono text-sm transition-colors"
+            >
+              QUITTER
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

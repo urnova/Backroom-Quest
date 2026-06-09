@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { GameProvider } from "./context/GameContext";
+import { SettingsProvider } from "./context/SettingsContext";
 
 import MainMenu from "./pages/MainMenu";
 import SoloSetup from "./pages/SoloSetup";
@@ -11,6 +12,7 @@ import Lobby from "./pages/Lobby";
 import Game from "./pages/Game";
 import GameOver from "./pages/GameOver";
 import Victory from "./pages/Victory";
+import OptionsMenu from "./pages/OptionsMenu";
 import NotFound from "./pages/not-found";
 import CRTOverlay from "./components/CRTOverlay";
 
@@ -26,6 +28,7 @@ function Router() {
       <Route path="/game/:code" component={Game} />
       <Route path="/gameover" component={GameOver} />
       <Route path="/victory" component={Victory} />
+      <Route path="/options" component={OptionsMenu} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -35,14 +38,16 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <GameProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <div className="relative w-full h-screen overflow-hidden bg-background text-foreground font-sans">
-              <CRTOverlay />
-              <Router />
-            </div>
-          </WouterRouter>
-        </GameProvider>
+        <SettingsProvider>
+          <GameProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <div className="relative w-full h-screen overflow-hidden bg-background text-foreground font-sans">
+                <CRTOverlay />
+                <Router />
+              </div>
+            </WouterRouter>
+          </GameProvider>
+        </SettingsProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

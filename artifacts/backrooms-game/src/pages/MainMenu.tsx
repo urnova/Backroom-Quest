@@ -9,13 +9,22 @@ export default function MainMenu() {
 
   useState(() => { leaveRoom(); });
 
+  const menuItems = [
+    { href: "/solo", label: "JOUER EN SOLO", delay: 0.3 },
+    { href: "/multiplayer", label: "MULTIJOUEUR", delay: 0.5 },
+    { href: "/options", label: "OPTIONS", delay: 0.7 },
+  ];
+
   return (
     <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center overflow-hidden bg-[#0a0a06]">
       <div className="absolute inset-0 overflow-hidden">
         <div className="corridor-bg" />
         <div className="absolute inset-0 flicker-overlay" />
         <div className="absolute inset-0 grain-overlay opacity-30" />
-        <div className="absolute inset-0 pointer-events-none" style={{background:"radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.92) 100%)"}} />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.88) 100%)" }}
+        />
       </div>
 
       <div className="absolute inset-0 scanlines pointer-events-none z-10" />
@@ -56,10 +65,7 @@ export default function MainMenu() {
         <div className="w-64 h-px bg-primary/30 my-6" />
 
         <div className="flex flex-col gap-3 w-72">
-          {[
-            { href: "/solo", label: "JOUER EN SOLO", delay: 0.3 },
-            { href: "/multiplayer", label: "MULTIJOUEUR", delay: 0.5 },
-          ].map(({ href, label, delay }) => (
+          {menuItems.map(({ href, label, delay }) => (
             <motion.div
               key={href}
               initial={{ opacity: 0, x: -20 }}
@@ -68,7 +74,6 @@ export default function MainMenu() {
             >
               <Link
                 href={href}
-                data-testid={`link-${href.replace("/", "")}`}
                 className="block px-6 py-3 border border-primary/40 text-primary text-center uppercase tracking-[0.3em] hover:bg-primary/15 hover:border-primary/70 hover:scale-105 transition-all duration-200 font-mono text-sm"
               >
                 {label}
@@ -79,11 +84,10 @@ export default function MainMenu() {
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 1.6, duration: 0.8 }}
+            transition={{ delay: 1.0, duration: 0.5 }}
           >
             <button
               onClick={() => setShowCredits(true)}
-              data-testid="button-credits"
               className="w-full px-6 py-3 border border-primary/20 text-primary/50 text-center uppercase tracking-[0.3em] hover:bg-primary/10 hover:border-primary/40 hover:text-primary/70 transition-all duration-200 font-mono text-sm"
             >
               CRÉDITS
@@ -105,7 +109,7 @@ export default function MainMenu() {
         Created by Astral
       </div>
       <div className="absolute bottom-4 left-6 text-primary/20 text-xs tracking-widest z-20 font-mono">
-        v1.0
+        v1.1
       </div>
 
       <AnimatePresence>
@@ -121,7 +125,7 @@ export default function MainMenu() {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              onClick={e => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
               className="border border-primary/40 bg-black/90 p-10 max-w-md w-full text-center"
             >
               <h2 className="text-3xl font-title text-primary tracking-widest mb-6">CRÉDITS</h2>
@@ -132,8 +136,13 @@ export default function MainMenu() {
                 </div>
                 <div className="w-32 h-px bg-primary/20 mx-auto" />
                 <p className="text-xs leading-relaxed text-primary/40">
-                  The Liminal — Un voyage dans les espaces oubliés entre les mondes.<br />
+                  The Liminal — Un voyage dans les espaces oubliés entre les mondes.
+                  <br />
                   20 niveaux. Des entités. Pas de pitié.
+                </p>
+                <div className="w-32 h-px bg-primary/20 mx-auto" />
+                <p className="text-xs text-primary/30">
+                  Three.js · React · Socket.io
                 </p>
               </div>
               <button

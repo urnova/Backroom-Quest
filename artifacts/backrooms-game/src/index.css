@@ -171,7 +171,7 @@
   }
 }
 
-/* CRT Scanlines */
+/* CRT Scanlines — subtle */
 .crt-overlay {
   position: fixed;
   top: 0;
@@ -182,9 +182,10 @@
   z-index: 50;
   background: linear-gradient(
     rgba(18, 16, 16, 0) 50%,
-    rgba(0, 0, 0, 0.25) 50%
+    rgba(0, 0, 0, 0.1) 50%
   );
-  background-size: 100% 4px;
+  background-size: 100% 3px;
+  opacity: 0.6;
 }
 
 /* Film Grain */
@@ -196,11 +197,11 @@
   height: 100vh;
   pointer-events: none;
   z-index: 51;
-  opacity: 0.05;
+  opacity: 0.04;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
-/* Vignette */
+/* Vignette — subtle */
 .vignette {
   position: fixed;
   top: 0;
@@ -211,8 +212,8 @@
   z-index: 49;
   background: radial-gradient(
     circle,
-    rgba(0, 0, 0, 0) 40%,
-    rgba(0, 0, 0, 0.8) 100%
+    rgba(0, 0, 0, 0) 50%,
+    rgba(0, 0, 0, 0.45) 100%
   );
 }
 
