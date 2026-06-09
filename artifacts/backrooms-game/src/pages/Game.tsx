@@ -6,7 +6,7 @@ import { BackroomsEngine } from "../game/BackroomsEngine";
 import { InputHandler } from "../game/InputHandler";
 import { AudioManager } from "../game/AudioManager";
 import { WorldItem } from "../game/ItemManager";
-import { getSelectedSkin } from "./SkinSelector";
+import { getSelectedSkin, addCoins, computeLevelCoins, updateMaxLevel } from "../lib/playerStore";
 import HUD from "../components/HUD";
 import EmoteWheel from "../components/EmoteWheel";
 import ChatLog from "../components/ChatLog";
@@ -34,6 +34,7 @@ export default function Game() {
   const [showBanner, setShowBanner] = useState(false);
   const [levelName, setLevelName] = useState("");
   const [showExitHint, setShowExitHint] = useState(false);
+  const [coinsEarned, setCoinsEarned] = useState<number | null>(null);
   const [showTutorial, setShowTutorial] = useState(shouldShowTutorial);
   const [isPaused, setIsPaused] = useState(false);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
@@ -164,8 +165,17 @@ export default function Game() {
           exitTriggeredRef.current = true;
           setShowExitHint(false);
           socket.emit("level:complete", { code, playerId }, (ack: any) => {
-            if (ack?.error) exitTriggeredRef.current = false;
-            if (ack?.won) setLocation("/victory");
+            if (ack?.error) { exitTriggeredRef.current = false; return; }
+            if (ack?.won) { setLocation("/victory"); return; }
+            if (ack?.ok) {
+              const completedLevel = ack.newLevel !== undefined ? ack.newLevel - 1 : 0;
+              const diff = gameState?.difficulty ?? "normal";
+              const earned = computeLevelCoins(completedLevel, diff);
+              addCoins(earned);
+              updateMaxLevel(completedLevel + 1);
+              setCoinsEarned(earned);
+              setTimeout(() => setCoinsEarned(null), 3000);
+            }
           });
         } else if (!exitTriggeredRef.current && engineRef.current.getExitPosition()) {
           const exit = engineRef.current.getExitPosition()!;
@@ -305,6 +315,23 @@ export default function Game() {
       </AnimatePresence>
 
       {showBanner && <LevelBanner levelName={levelName} />}
+
+      <AnimatePresence>
+        {coinsEarned !== null && (
+          <motion.div
+            key="coins-toast"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute bottom-36 left-1/2 -translate-x-1/2 z-30 pointer-events-none
+              flex items-center gap-2 border border-yellow-400/40 bg-black/90 px-6 py-3 font-mono text-sm uppercase tracking-widest"
+          >
+            <span className="text-yellow-400 text-lg font-bold">◈</span>
+            <span className="text-yellow-300 font-bold">+{coinsEarned}</span>
+            <span className="text-primary/60">pièces gagnées</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {showExitHint && !exitTriggeredRef.current && (
         <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-20 pointer-events-none">

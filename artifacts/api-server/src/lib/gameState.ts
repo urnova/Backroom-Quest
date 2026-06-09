@@ -149,7 +149,7 @@ export const MOB_DEFINITIONS: Record<string, {
   bacteria: { displayName: "The Bacteria", speed: 0.06, hp: 200, damage: 40, detectionRange: 20, attackRange: 2.0, color: "#20ff20", description: "Un organisme colonial qui envahit tout" },
 };
 
-export function createRoom(hostName: string, maxPlayers: number, difficulty: Difficulty): Room {
+export function createRoom(hostName: string, maxPlayers: number, difficulty: Difficulty, hostSkin?: string): Room {
   const id = randomUUID();
   const code = generateUniqueCode();
   const room: Room = {
@@ -168,15 +168,14 @@ export function createRoom(hostName: string, maxPlayers: number, difficulty: Dif
     mapSeed: Math.floor(Math.random() * 100000),
   };
 
-  const hostPlayer = createPlayer(randomUUID(), hostName, true);
+  const hostPlayer = createPlayer(randomUUID(), hostName, true, hostSkin);
   room.players.set(hostPlayer.id, hostPlayer);
   rooms.set(code, room);
   logger.info({ code, hostName, difficulty }, "Room created");
   return room;
 }
 
-export function createPlayer(id: string, name: string, isHost: boolean): Player {
-  const skins = ["default", "explorer", "scientist", "soldier", "survivor"];
+export function createPlayer(id: string, name: string, isHost: boolean, skin?: string): Player {
   return {
     id,
     name,
@@ -192,7 +191,7 @@ export function createPlayer(id: string, name: string, isHost: boolean): Player 
     emoteExpiry: 0,
     sanity: 100,
     flashlightOn: true,
-    skin: skins[Math.floor(Math.random() * skins.length)],
+    skin: skin || "survivor",
     lastActivity: Date.now(),
   };
 }

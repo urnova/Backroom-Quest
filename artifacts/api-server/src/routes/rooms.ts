@@ -22,12 +22,16 @@ router.post("/rooms", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const { hostName, maxPlayers } = parsed.data;
+  const { hostName } = parsed.data;
+  const rawMax = Number(req.body.maxPlayers);
+  const maxPlayers = !isNaN(rawMax) && rawMax >= 1 && rawMax <= 8 ? rawMax : 4;
   const difficulty = (req.body.difficulty as string) || "normal";
+  const skin = typeof req.body.skin === "string" ? req.body.skin : undefined;
   const room = createRoom(
     hostName,
-    maxPlayers ?? 4,
-    difficulty as "easy" | "normal" | "hard" | "nightmare"
+    maxPlayers,
+    difficulty as "easy" | "normal" | "hard" | "nightmare",
+    skin
   );
   res.status(201).json(roomToJSON(room));
 });

@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useCreateRoom, useJoinRoom } from "@workspace/api-client-react";
 import { useGameStore } from "../context/GameContext";
+import { getSavedPseudo, getSelectedSkin } from "../lib/playerStore";
 
 const DIFFICULTY_INFO = {
   easy: { label: "🟢 FACILE", desc: "Plus de santé, entités lentes, sauvegarde activée." },
@@ -13,12 +14,11 @@ const DIFFICULTY_INFO = {
 
 export default function MultiplayerHub() {
   const [, setLocation] = useLocation();
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() => getSavedPseudo() || "");
   const [mode, setMode] = useState<"choose" | "create" | "join">("choose");
   const [joinCode, setJoinCode] = useState("");
   const [difficulty, setDifficulty] = useState<keyof typeof DIFFICULTY_INFO>("normal");
   const [maxPlayers, setMaxPlayers] = useState(4);
-  const [startLevel, setStartLevel] = useState(0);
   const [error, setError] = useState("");
 
   const createRoom = useCreateRoom();
@@ -27,15 +27,17 @@ export default function MultiplayerHub() {
 
   const handleCreate = () => {
     if (!name.trim()) { setError("Entrez un pseudo"); return; }
+    setError("");
     setPlayerName(name);
+    createRoom.reset();
     createRoom.mutate(
-      { data: { hostName: name, maxPlayers, difficulty } as any },
+      { data: { hostName: name, maxPlayers, difficulty, skin: getSelectedSkin() } as any },
       {
         onSuccess: (room: any) => {
           connectSocket(room.code, room.players[0].id);
           setLocation(`/lobby/${room.code}`);
         },
-        onError: () => setError("Erreur de création de salon"),
+        onError: (err: any) => setError(err?.message || "Erreur de création de salon"),
       }
     );
   };
@@ -43,7 +45,9 @@ export default function MultiplayerHub() {
   const handleJoin = () => {
     if (!name.trim()) { setError("Entrez un pseudo"); return; }
     if (!joinCode.trim()) { setError("Entrez un code de salon"); return; }
+    setError("");
     setPlayerName(name);
+    joinRoomMut.reset();
     joinRoomMut.mutate(
       { code: joinCode.toUpperCase(), data: { playerName: name } },
       {
@@ -51,7 +55,7 @@ export default function MultiplayerHub() {
           connectSocket(res.room.code, res.playerId);
           setLocation(`/lobby/${res.room.code}`);
         },
-        onError: () => setError("Code invalide, salon introuvable ou complet"),
+        onError: (err: any) => setError(err?.message || "Code invalide, salon introuvable ou complet"),
       }
     );
   };

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { io, Socket } from "socket.io-client";
 import { GameState, Player, Mob, Room, LevelConfig } from "../types/game";
+import { getSavedPseudo, setSavedPseudo, getSelectedSkin } from "../lib/playerStore";
 
 interface GameContextType {
   socket: Socket | null;
@@ -25,7 +26,7 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 export function GameProvider({ children }: { children: ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
-  const [playerName, setPlayerName] = useState<string>("");
+  const [playerName, setPlayerNameState] = useState<string>(() => getSavedPseudo());
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [difficulty, setDifficulty] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -55,6 +56,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGameState(data.state);
       setLevelConfig(data.levelConfig);
       setHasWon(false);
+      if (data.state.difficulty) setDifficulty(data.state.difficulty);
     });
 
     newSocket.on("game:tick", (data: { players: Player[]; mobs: Mob[]; tick: number }) => {
@@ -100,11 +102,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const setPlayerName = (name: string) => {
+    setPlayerNameState(name);
+    setSavedPseudo(name);
+  };
+
   const joinRoom = (code: string, id: string) => {
     setRoomCode(code);
     setPlayerId(id);
     if (socketRef.current) {
-      socketRef.current.emit("room:join", { code, playerId: id });
+      socketRef.current.emit("room:join", { code, playerId: id, skin: getSelectedSkin() });
     }
   };
 
@@ -112,7 +119,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setRoomCode(code);
     setPlayerId(id);
     if (socketRef.current) {
-      socketRef.current.emit("room:join", { code, playerId: id }, (ack: { ok?: boolean; error?: string }) => {
+      socketRef.current.emit("room:join", { code, playerId: id, skin: getSelectedSkin() }, (ack: { ok?: boolean; error?: string }) => {
         if (ack?.ok) {
           socketRef.current?.emit("game:start", { code, playerId: id });
         }
@@ -125,6 +132,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGameState(null);
     setLevelConfig(null);
     setHasWon(false);
+    setDifficulty(null);
   };
 
   const startGame = () => {

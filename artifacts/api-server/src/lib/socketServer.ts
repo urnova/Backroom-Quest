@@ -26,13 +26,14 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
   io.on("connection", (socket) => {
     logger.info({ socketId: socket.id }, "Socket connected");
 
-    socket.on("room:join", (data: { code: string; playerId: string }, ack) => {
+    socket.on("room:join", (data: { code: string; playerId: string; skin?: string }, ack) => {
       const room = getRoom(data.code);
       if (!room) { ack?.({ error: "Room not found" }); return; }
       socket.join(`room:${data.code}`);
       socket.data.roomCode = data.code;
       socket.data.playerId = data.playerId;
       const player = room.players.get(data.playerId);
+      if (player && data.skin) player.skin = data.skin;
       socket.data.playerName = player?.name ?? "?";
       io.to(`room:${data.code}`).emit("room:updated", roomToJSON(room));
       ack?.({ ok: true, state: getRoomState(room) });

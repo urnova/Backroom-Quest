@@ -1,3 +1,7 @@
 - [The Liminal game stack](the-liminal-stack.md) — React+Vite+Three.js frontend (port 5000) + Express+Socket.io API (port 8080), pnpm monorepo.
 - [Solo mode fix](solo-mode-fix.md) — joinAndStartSolo() in GameContext uses socket ack chain to join then start; SoloSetup navigates via useEffect watching gameState.
 - [Workflow ports](workflow-ports.md) — Replit workflows only support specific ports; frontend uses 5000 (not 19682), API uses 8080.
+- [Vite proxy required](vite-proxy.md) — vite.config.ts must proxy /api → http://localhost:8080 with ws:true; without it all API and socket.io calls fail silently.
+- [Solo maxPlayers bypass](solo-maxplayers.md) — Zod schema enforces maxPlayers min:2; rooms.ts reads req.body.maxPlayers directly (bypasses schema) to allow solo (maxPlayers:1).
+- [Skin shop canvas2D](skin-preview-canvas2d.md) — SkinPreview3D uses Canvas 2D not WebGL for humanoid rotation; WebGL has context limits (~16) and fails in headless/GPU-less environments.
+- [Player store pattern](player-store.md) — All client-side persistence (coins, skins, pseudo, maxLevel) in lib/playerStore.ts using localStorage keys prefixed liminal_.

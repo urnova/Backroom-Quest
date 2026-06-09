@@ -3,14 +3,17 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useCreateRoom } from "@workspace/api-client-react";
 import { useGameStore } from "../context/GameContext";
+import { getSavedPseudo, getMaxLevelReached, getSelectedSkin } from "../lib/playerStore";
 
 export default function SoloSetup() {
   const [, setLocation] = useLocation();
-  const [name, setName] = useState("Survivant");
+  const [name, setName] = useState(() => getSavedPseudo() || "Survivant");
   const [difficulty, setDifficulty] = useState("normal");
   const [waiting, setWaiting] = useState(false);
+  const [error, setError] = useState("");
   const createRoom = useCreateRoom();
   const { setPlayerName, joinAndStartSolo, gameState, roomCode } = useGameStore();
+  const maxLevel = getMaxLevelReached();
 
   useEffect(() => {
     if (waiting && gameState && roomCode) {
@@ -19,16 +22,19 @@ export default function SoloSetup() {
   }, [waiting, gameState, roomCode, setLocation]);
 
   const handleStart = () => {
-    if (!name.trim()) return;
+    if (!name.trim()) { setError("Entre un pseudo"); return; }
+    setError("");
     setPlayerName(name);
+    createRoom.reset();
     createRoom.mutate(
-      { data: { hostName: name, maxPlayers: 1, difficulty } as any },
+      { data: { hostName: name, maxPlayers: 1, difficulty, skin: getSelectedSkin() } as any },
       {
         onSuccess: (room: any) => {
           joinAndStartSolo(room.code, room.players[0].id);
           setWaiting(true);
         },
-        onError: () => {
+        onError: (err: any) => {
+          setError(err?.message || "Erreur de connexion au serveur");
           setWaiting(false);
         }
       }
@@ -56,10 +62,15 @@ export default function SoloSetup() {
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => { setName(e.target.value); setError(""); }}
                 className="bg-black/50 border border-primary/30 p-3 text-primary outline-none focus:border-primary transition-colors uppercase font-mono"
                 maxLength={15}
               />
+              {maxLevel > 0 && (
+                <div className="text-primary/40 font-mono text-xs tracking-wide">
+                  ◈ Meilleur niveau atteint : Niveau {maxLevel}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-2">
@@ -96,6 +107,12 @@ export default function SoloSetup() {
               </div>
             </div>
 
+            {error && (
+              <div className="text-destructive text-sm font-mono text-center border border-destructive/30 bg-destructive/10 px-4 py-2">
+                {error}
+              </div>
+            )}
+
             <div className="flex justify-between mt-4">
               <button
                 onClick={() => setLocation("/")}
@@ -106,7 +123,7 @@ export default function SoloSetup() {
               <button
                 onClick={handleStart}
                 disabled={createRoom.isPending}
-                className="px-8 py-2 bg-primary text-primary-foreground font-bold hover:bg-primary/90 uppercase font-mono"
+                className="px-8 py-2 bg-primary text-primary-foreground font-bold hover:bg-primary/90 uppercase font-mono disabled:opacity-50"
               >
                 {createRoom.isPending ? "CRÉATION..." : "PLONGER"}
               </button>
