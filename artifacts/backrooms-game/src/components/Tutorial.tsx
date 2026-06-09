@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSettings } from "../context/SettingsContext";
 
 const TUTORIAL_KEY = "liminal_tutorial_done";
 
@@ -11,42 +10,56 @@ const steps = [
     lines: [
       "Vous êtes piégé dans des espaces entre les mondes.",
       "Survivez. Trouvez la sortie. Passez au niveau suivant.",
+      "Chaque niveau devient plus dangereux. Bonne chance.",
     ],
   },
   {
     title: "DÉPLACEMENT",
     icon: "🎮",
     lines: [
-      "Déplacer : Z Q S D (ou flèches directionnelles)",
-      "Sprint : Maintenir Shift",
-      "Regarder : Déplacer la souris (cliquez pour verrouiller)",
+      "Avancer / Reculer : Z / S  (ou W / S en QWERTY)",
+      "Gauche / Droite : Q / D  (ou A / D en QWERTY)",
+      "Sprint : Maintenir SHIFT",
+      "Regarder : Déplacer la souris  (cliquez pour verrouiller)",
+      "Flèches directionnelles : alternative universelle",
     ],
   },
   {
-    title: "ACTIONS",
+    title: "ACTIONS EN JEU",
     icon: "⚡",
     lines: [
-      "Attaquer : Clic gauche (à portée d'une entité)",
-      "Lampe torche : F",
-      "Émotes : Maintenir E",
-      "Chat : T",
+      "Attaquer : Clic gauche  (quand une entité est proche)",
+      "Lampe torche : Touche F",
+      "Émotes / Interagir : Touche E",
+      "Inventaire : Touche TAB",
+      "Chat : Touche T",
+      "Pause / Menu : Touche ÉCHAP",
+    ],
+  },
+  {
+    title: "OBJETS AU SOL",
+    icon: "💊",
+    lines: [
+      "Croix rouge  → Trousse de soins  (+40 PV)",
+      "Capsule jaune → Batterie  (recharge la lampe torche)",
+      "Diamant bleu  → Boost de vitesse  (×1.5 pendant 30s)",
+      "Marchez sur un objet pour le ramasser automatiquement.",
     ],
   },
   {
     title: "SURVIE",
     icon: "💀",
     lines: [
-      "Votre SANITÉ diminue près des entités.",
+      "Votre SANITÉ MENTALE diminue près des entités.",
       "À sanité faible, des hallucinations apparaissent.",
-      "Trouvez le portail vert brillant pour avancer.",
-      "Bonne chance. Vous en aurez besoin.",
+      "Trouvez le portail lumineux vert pour avancer.",
+      "Completez des niveaux pour gagner des ◈ pièces.",
     ],
   },
 ];
 
 export default function Tutorial({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
-  const { settings } = useSettings();
 
   const next = () => {
     if (step < steps.length - 1) {
@@ -65,7 +78,7 @@ export default function Tutorial({ onDone }: { onDone: () => void }) {
   const current = steps[step];
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center pb-16 pointer-events-none">
+    <div className="absolute inset-0 z-50 flex items-end justify-center pb-12 pointer-events-none">
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
@@ -73,28 +86,32 @@ export default function Tutorial({ onDone }: { onDone: () => void }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.25 }}
-          className="pointer-events-auto border border-primary/40 bg-black/85 backdrop-blur-sm p-6 max-w-md w-full mx-4"
-          style={{ boxShadow: "0 0 30px rgba(200,180,96,0.15)" }}
+          className="pointer-events-auto border border-primary/40 bg-black/90 backdrop-blur-sm p-6 max-w-lg w-full mx-4"
+          style={{ boxShadow: "0 0 40px rgba(200,180,96,0.12)" }}
         >
           <div className="flex items-center gap-3 mb-3">
             <span className="text-2xl">{current.icon}</span>
             <h3 className="text-primary font-title text-lg tracking-widest">{current.title}</h3>
+            <span className="ml-auto text-primary/30 font-mono text-xs">{step + 1}/{steps.length}</span>
           </div>
 
-          <div className="space-y-1.5 mb-4">
+          <div className="space-y-1.5 mb-5">
             {current.lines.map((line, i) => (
-              <p key={i} className="text-primary/70 font-mono text-xs leading-relaxed">
-                {line}
+              <p key={i} className="text-primary/80 font-mono text-xs leading-relaxed flex items-start gap-2">
+                <span className="text-primary/30 mt-0.5">▸</span>
+                <span>{line}</span>
               </p>
             ))}
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex gap-1">
+            <div className="flex gap-1.5">
               {steps.map((_, i) => (
                 <div
                   key={i}
-                  className={`w-2 h-2 rounded-full ${i <= step ? "bg-primary" : "bg-primary/20"}`}
+                  className={`rounded-full transition-all ${
+                    i === step ? "w-4 h-2 bg-primary" : i < step ? "w-2 h-2 bg-primary/60" : "w-2 h-2 bg-primary/20"
+                  }`}
                 />
               ))}
             </div>

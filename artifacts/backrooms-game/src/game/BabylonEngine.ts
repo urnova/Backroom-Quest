@@ -73,6 +73,7 @@ export class BabylonEngine {
   public onEmoteDown?: () => void;
   public onEmoteUp?: () => void;
   public onEscape?: () => void;
+  public onInventory?: () => void;
   public onItemPickup?: (item: WorldItem) => void;
   public onNearItem?: (label: string | null) => void;
   public onTick?: (state: { x: number; y: number; angle: number }) => void;
@@ -119,13 +120,14 @@ export class BabylonEngine {
       "fl",
       Vector3.Zero(),
       new Vector3(0, 0, 1),
-      Math.PI / 5.5,
-      16,
+      Math.PI / 3.0,
+      5,
       this._scene,
     );
-    this._flashlight.diffuse  = new Color3(1, 0.97, 0.84);
-    this._flashlight.intensity = 2.8;
-    this._flashlight.range     = 24;
+    this._flashlight.diffuse  = new Color3(1, 0.97, 0.90);
+    this._flashlight.specular = new Color3(0.4, 0.38, 0.30);
+    this._flashlight.intensity = 5.0;
+    this._flashlight.range     = 38;
     this._flashlight.parent    = this._camera;
   }
 
@@ -145,6 +147,7 @@ export class BabylonEngine {
     this._keys[e.code] = true;
     if (e.code === "KeyF") { this._toggleFL(); this.onFlashlight?.(); }
     if (e.code === "Escape" && this._locked) { document.exitPointerLock(); this.onEscape?.(); }
+    if (e.code === "Tab") { e.preventDefault(); this.onInventory?.(); }
     if ((e.code === "KeyT" || e.code === "KeyE") && this._locked) {
       document.exitPointerLock();
       this.onEmoteDown?.();
@@ -360,12 +363,12 @@ export class BabylonEngine {
 
         if (pls.length < 20) {
           const pl = new PointLight(`pl${pls.length}`, new Vector3(col + 0.5, WALL_H - 0.25, row + 0.5), this._scene);
-          pl.diffuse    = new Color3(1, 0.95, 0.78);
-          pl.intensity  = 0.6;
-          pl.range      = 9;
-          const base = 0.55 + Math.random() * 0.12;
-          const fl   = 0.035 + Math.random() * 0.035;
-          const freq = 0.7 + Math.random() * 0.5;
+          pl.diffuse    = new Color3(1, 0.96, 0.82);
+          pl.intensity  = 1.8;
+          pl.range      = 14;
+          const base = 1.8 + Math.random() * 0.1;
+          const fl   = 0.006 + Math.random() * 0.006;
+          const freq = 0.25 + Math.random() * 0.15;
           const off  = Math.random() * Math.PI * 2;
           this._levelObservers.push(
             this._scene.onBeforeRenderObservable.add(() => {
@@ -379,9 +382,9 @@ export class BabylonEngine {
 
     // --- Ambient ---
     const amb = new HemisphericLight("amb", new Vector3(0, 1, 0), this._scene);
-    amb.intensity    = cfg.ambientLight ?? 0.14;
-    amb.diffuse      = new Color3(1, 0.94, 0.78);
-    amb.groundColor  = new Color3(0.12, 0.1, 0.06);
+    amb.intensity    = Math.max(0.45, (cfg.ambientLight ?? 0.14) * 3.0);
+    amb.diffuse      = new Color3(1, 0.96, 0.82);
+    amb.groundColor  = new Color3(0.3, 0.25, 0.15);
 
     // --- Fog ---
     this._scene.fogMode    = Scene.FOGMODE_EXP2;
@@ -448,6 +451,27 @@ export class BabylonEngine {
     );
   }
 
+  private _buildItemMesh(type: string, mat: StandardMaterial, idx: number, x: number, z: number): Mesh {
+    if (type === "health") {
+      const hBar = MeshBuilder.CreateBox(`ih${idx}`, { width: 0.32, height: 0.07, depth: 0.07 }, this._scene);
+      hBar.position.set(x, 0.22, z); hBar.material = mat; hBar.isPickable = false;
+      const vUp = MeshBuilder.CreateBox(`iv${idx}`, { width: 0.07, height: 0.22, depth: 0.07 }, this._scene);
+      vUp.position.set(0, 0, 0); vUp.parent = hBar; vUp.material = mat; vUp.isPickable = false;
+      return hBar;
+    }
+    if (type === "battery") {
+      const cyl = MeshBuilder.CreateCylinder(`ib${idx}`, { height: 0.34, diameter: 0.14, tessellation: 10 }, this._scene);
+      cyl.position.set(x, 0.28, z); cyl.material = mat; cyl.isPickable = false;
+      const cap = MeshBuilder.CreateCylinder(`ibc${idx}`, { height: 0.05, diameter: 0.07, tessellation: 10 }, this._scene);
+      cap.position.set(0, 0.195, 0); cap.parent = cyl; cap.material = mat; cap.isPickable = false;
+      return cyl;
+    }
+    const gem = MeshBuilder.CreateSphere(`is${idx}`, { diameter: 0.27, segments: 4 }, this._scene);
+    gem.position.set(x, 0.24, z); gem.scaling.set(1.0, 1.55, 1.0);
+    gem.material = mat; gem.isPickable = false;
+    return gem;
+  }
+
   private _spawnItems(map: number[][], cols: number, rows: number) {
     const defs: Array<{ type: string; color: Color3; label: string; count: number }> = [
       { type: "health",  color: new Color3(0.9, 0.1, 0.1), label: "KIT MÉDICAL",    count: 3 },
@@ -470,12 +494,10 @@ export class BabylonEngine {
 
         const imat = new StandardMaterial(`im${idx}`, this._scene);
         imat.diffuseColor  = def.color;
-        imat.emissiveColor = new Color3(def.color.r * 0.45, def.color.g * 0.45, def.color.b * 0.45);
+        imat.emissiveColor = new Color3(def.color.r * 0.65, def.color.g * 0.65, def.color.b * 0.65);
+        imat.specularColor = new Color3(def.color.r * 0.2, def.color.g * 0.2, def.color.b * 0.2);
 
-        const mesh = MeshBuilder.CreateBox(`item_${def.type}_${idx}`, { width: 0.3, height: 0.3, depth: 0.3 }, this._scene);
-        mesh.position.set(rx + 0.5, 0.25, rz + 0.5);
-        mesh.material   = imat;
-        mesh.isPickable = false;
+        const mesh = this._buildItemMesh(def.type, imat, idx, rx + 0.5, rz + 0.5);
 
         const base = 0.25;
         const off  = idx * 1.1;

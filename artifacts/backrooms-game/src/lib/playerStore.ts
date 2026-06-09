@@ -1,3 +1,14 @@
+export interface SkinVisual {
+  bodyHex: string;
+  accentHex: string;
+  skinTone: string;
+  style: "standard" | "armored" | "hazmat" | "robe" | "ghost" | "void";
+  hatType: "none" | "helmet" | "hood" | "bandana" | "gas_mask" | "goggles_head";
+  extras: Array<"backpack" | "armor_plates" | "lab_coat" | "tie" | "glow_aura" | "particles" | "cloak" | "tactical_vest">;
+  glowHex?: string;
+  opacity?: number;
+}
+
 export interface SkinDef {
   id: string;
   name: string;
@@ -6,32 +17,156 @@ export interface SkinDef {
   price: number;
   desc: string;
   rarity: "common" | "rare" | "epic" | "legendary";
+  visual: SkinVisual;
 }
 
 export const SKINS: SkinDef[] = [
-  { id: "survivor", name: "Survivant", color: "#cc4400", accent: "#ffaa44", price: 0, desc: "Le classique. Rouge comme le danger.", rarity: "common" },
-  { id: "explorer", name: "Explorateur", color: "#1155cc", accent: "#44aaff", price: 0, desc: "Curieux et courageux. Bleu nuit.", rarity: "common" },
-  { id: "scientist", name: "Scientifique", color: "#228844", accent: "#55ff88", price: 50, desc: "Cherche des réponses. Vert laboratoire.", rarity: "common" },
-  { id: "soldier", name: "Soldat", color: "#667755", accent: "#aabb88", price: 100, desc: "Entraîné pour survivre. Tenue kaki.", rarity: "common" },
-  { id: "medic", name: "Médecin", color: "#99bbcc", accent: "#ffffff", price: 150, desc: "Garde les autres en vie. Blanc clinique.", rarity: "rare" },
-  { id: "hazmat", name: "Hazmat", color: "#cc9900", accent: "#ffee00", price: 200, desc: "Protégé contre tout. Jaune vif.", rarity: "rare" },
-  { id: "agent", name: "Agent", color: "#111111", accent: "#666666", price: 250, desc: "Mystérieux et discret. Noir absolu.", rarity: "rare" },
-  { id: "ghost", name: "Fantôme", color: "#7788aa", accent: "#ccddff", price: 300, desc: "Entre deux mondes. Translucide.", rarity: "epic" },
-  { id: "cultist", name: "Cultiste", color: "#5a0010", accent: "#cc0030", price: 400, desc: "Il connaît les secrets du Liminal.", rarity: "epic" },
-  { id: "void_walker", name: "Marcheur du Vide", color: "#1a0040", accent: "#9900ff", price: 600, desc: "Venu de nulle part. Maître du néant.", rarity: "legendary" },
+  {
+    id: "survivor",
+    name: "Survivant",
+    color: "#c44020",
+    accent: "#ff8844",
+    price: 0,
+    desc: "Le premier à s'être aventuré. Veste déchirée, regard déterminé.",
+    rarity: "common",
+    visual: {
+      bodyHex: "#c44020", accentHex: "#ff8844", skinTone: "#d4956a",
+      style: "standard", hatType: "bandana", extras: ["backpack"],
+    },
+  },
+  {
+    id: "explorer",
+    name: "Explorateur",
+    color: "#1144bb",
+    accent: "#44aaff",
+    price: 0,
+    desc: "Équipé pour cartographier l'inconnu. Combinaison de terrain bleu nuit.",
+    rarity: "common",
+    visual: {
+      bodyHex: "#1144bb", accentHex: "#44aaff", skinTone: "#c8a078",
+      style: "standard", hatType: "goggles_head", extras: ["backpack"],
+    },
+  },
+  {
+    id: "scientist",
+    name: "Scientifique",
+    color: "#e8e8e8",
+    accent: "#55ffaa",
+    price: 50,
+    desc: "Analyse chaque anomalie. Blouse blanche immaculée, carnet en main.",
+    rarity: "common",
+    visual: {
+      bodyHex: "#e8e8e8", accentHex: "#55ffaa", skinTone: "#f0c090",
+      style: "standard", hatType: "none", extras: ["lab_coat"],
+    },
+  },
+  {
+    id: "soldier",
+    name: "Soldat",
+    color: "#556644",
+    accent: "#99bb66",
+    price: 100,
+    desc: "Tenu pour survivre à n'importe quoi. Gilet tactique, rations de combat.",
+    rarity: "common",
+    visual: {
+      bodyHex: "#556644", accentHex: "#99bb66", skinTone: "#8a6040",
+      style: "armored", hatType: "helmet", extras: ["tactical_vest"],
+    },
+  },
+  {
+    id: "medic",
+    name: "Médecin",
+    color: "#ddeeff",
+    accent: "#ff4444",
+    price: 150,
+    desc: "Maintient les autres en vie. Combinaison médicale, croix rouge sur le bras.",
+    rarity: "rare",
+    visual: {
+      bodyHex: "#ddeeff", accentHex: "#ff4444", skinTone: "#f5ddc0",
+      style: "standard", hatType: "none", extras: ["lab_coat"],
+    },
+  },
+  {
+    id: "hazmat",
+    name: "Hazmat",
+    color: "#ddaa00",
+    accent: "#ffee22",
+    price: 200,
+    desc: "Scellé hermétiquement contre tout danger. Combinaison jaune intégrale.",
+    rarity: "rare",
+    visual: {
+      bodyHex: "#ddaa00", accentHex: "#ffee22", skinTone: "#ddaa00",
+      style: "hazmat", hatType: "gas_mask", extras: [],
+    },
+  },
+  {
+    id: "agent",
+    name: "Agent",
+    color: "#0d0d0d",
+    accent: "#555555",
+    price: 250,
+    desc: "Identité inconnue. Costume noir, cravate argentée. Mémoire effacée.",
+    rarity: "rare",
+    visual: {
+      bodyHex: "#0d0d0d", accentHex: "#aaaaaa", skinTone: "#c0a080",
+      style: "standard", hatType: "none", extras: ["tie"],
+    },
+  },
+  {
+    id: "ghost",
+    name: "Fantôme",
+    color: "#8899bb",
+    accent: "#cce8ff",
+    price: 300,
+    desc: "Entre deux états. Son corps projette une lumière froide bleutée.",
+    rarity: "epic",
+    visual: {
+      bodyHex: "#8899bb", accentHex: "#cce8ff", skinTone: "#aabbdd",
+      style: "ghost", hatType: "none", extras: ["glow_aura"],
+      glowHex: "#88aaff", opacity: 0.75,
+    },
+  },
+  {
+    id: "cultist",
+    name: "Cultiste",
+    color: "#420008",
+    accent: "#cc0022",
+    price: 400,
+    desc: "Il a trouvé les rituels du Liminal. Robes sombres, symboles gravés.",
+    rarity: "epic",
+    visual: {
+      bodyHex: "#420008", accentHex: "#cc0022", skinTone: "#6a3030",
+      style: "robe", hatType: "hood", extras: ["cloak", "glow_aura"],
+      glowHex: "#880022",
+    },
+  },
+  {
+    id: "void_walker",
+    name: "Marcheur du Vide",
+    color: "#080018",
+    accent: "#9900ff",
+    price: 600,
+    desc: "N'appartient à aucun monde. Énergie du néant, particules pourpres.",
+    rarity: "legendary",
+    visual: {
+      bodyHex: "#080018", accentHex: "#9900ff", skinTone: "#220044",
+      style: "void", hatType: "hood", extras: ["cloak", "particles", "glow_aura"],
+      glowHex: "#7700ee", opacity: 0.85,
+    },
+  },
 ];
 
 export const RARITY_COLORS: Record<string, string> = {
-  common: "#888888",
-  rare: "#4488cc",
-  epic: "#aa44cc",
+  common:    "#888888",
+  rare:      "#3388dd",
+  epic:      "#aa33cc",
   legendary: "#ffaa00",
 };
 
 export const RARITY_LABELS: Record<string, string> = {
-  common: "COMMUN",
-  rare: "RARE",
-  epic: "ÉPIQUE",
+  common:    "COMMUN",
+  rare:      "RARE",
+  epic:      "ÉPIQUE",
   legendary: "LÉGENDAIRE",
 };
 

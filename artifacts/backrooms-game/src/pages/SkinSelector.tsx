@@ -1,16 +1,12 @@
 import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import SkinPreview3D from "../components/SkinPreview3D";
+import SkinViewer3D from "../components/SkinViewer3D";
 import {
-  SKINS,
-  RARITY_COLORS,
-  RARITY_LABELS,
-  getCoins,
-  getUnlockedSkins,
-  unlockSkin,
-  getSelectedSkin,
-  setSelectedSkin,
+  SKINS, SkinDef,
+  RARITY_COLORS, RARITY_LABELS,
+  getCoins, getUnlockedSkins, unlockSkin,
+  getSelectedSkin, setSelectedSkin,
 } from "../lib/playerStore";
 
 export { getSelectedSkin };
@@ -20,307 +16,332 @@ export default function SkinSelector() {
   const [coins, setCoins] = useState(() => getCoins());
   const [unlocked, setUnlocked] = useState<string[]>(() => getUnlockedSkins());
   const [selected, setSelected] = useState<string>(() => getSelectedSkin());
-  const [saved, setSaved] = useState(false);
-  const [buyConfirm, setBuyConfirm] = useState<string | null>(null);
+  const [active, setActive] = useState<SkinDef>(() => SKINS.find(s => s.id === getSelectedSkin()) ?? SKINS[0]);
+  const [buyConfirm, setBuyConfirm] = useState(false);
   const [buyError, setBuyError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [saveFlash, setSaveFlash] = useState(false);
 
-  const handleSelect = useCallback((id: string) => {
-    if (!unlocked.includes(id)) return;
-    setSelected(id);
-    setSelectedSkin(id);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1400);
-  }, [unlocked]);
+  const handleCardClick = useCallback((skin: SkinDef) => {
+    setActive(skin);
+  }, []);
 
-  const handleBuy = useCallback((skinId: string) => {
-    const result = unlockSkin(skinId);
+  const handleEquip = useCallback(() => {
+    if (!unlocked.includes(active.id)) return;
+    setSelected(active.id);
+    setSelectedSkin(active.id);
+    setSaveFlash(true);
+    setTimeout(() => setSaveFlash(false), 1600);
+  }, [active, unlocked]);
+
+  const handleBuy = useCallback(() => {
+    const result = unlockSkin(active.id);
     if (result.success) {
       const newUnlocked = getUnlockedSkins();
       setUnlocked(newUnlocked);
       setCoins(getCoins());
-      setSelected(skinId);
-      setSelectedSkin(skinId);
-      setBuyConfirm(null);
+      setSelected(active.id);
+      setSelectedSkin(active.id);
+      setBuyConfirm(false);
+      setSaveFlash(true);
+      setTimeout(() => setSaveFlash(false), 1600);
     } else {
       setBuyError(result.reason ?? "Erreur");
-      setTimeout(() => setBuyError(null), 2000);
-      setBuyConfirm(null);
+      setTimeout(() => setBuyError(null), 2200);
+      setBuyConfirm(false);
     }
-  }, []);
+  }, [active]);
 
-  const previewSkin = preview ? SKINS.find(s => s.id === preview) : null;
+  const isUnlocked = unlocked.includes(active.id);
+  const isEquipped = selected === active.id;
+  const canAfford = coins >= active.price;
+  const rarityColor = RARITY_COLORS[active.rarity];
 
   return (
-    <div className="absolute inset-0 bg-background flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 px-8 pt-6 pb-4 border-b border-primary/20 flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-title text-primary tracking-widest">TENUES</h2>
-          <p className="text-primary/30 text-xs font-mono mt-0.5 uppercase tracking-widest">
-            Choisissez votre apparence dans le Liminal
-          </p>
+    <div className="absolute inset-0 flex flex-col overflow-hidden bg-[#0a0a06]"
+      style={{ fontFamily: "'Share Tech Mono', monospace" }}
+    >
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-primary/20 bg-black/60 z-10">
+        <button
+          onClick={() => setLocation("/")}
+          className="text-primary/50 hover:text-primary text-xs uppercase tracking-widest font-mono transition-colors flex items-center gap-2"
+        >
+          ← MENU
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="font-title text-primary text-xl tracking-widest">TENUES</span>
+          <span className="text-primary/20 text-xs">/</span>
+          <span className="text-primary/40 text-xs uppercase tracking-widest">{SKINS.length} skins</span>
         </div>
-        <div className="flex items-center gap-3">
-          {saved && (
-            <motion.span
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
-              className="text-accent font-mono text-xs uppercase tracking-widest"
-            >
-              Équipé ✓
-            </motion.span>
-          )}
-          {buyError && (
-            <motion.span
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-destructive font-mono text-xs"
-            >
-              {buyError}
-            </motion.span>
-          )}
-          <div className="flex items-center gap-2 border border-primary/30 bg-black/50 px-4 py-2">
-            <span className="text-yellow-400 font-mono text-lg font-bold">◈</span>
-            <span className="text-primary font-mono font-bold text-lg">{coins}</span>
-            <span className="text-primary/40 font-mono text-xs uppercase ml-1">pièces</span>
+        <div className="flex items-center gap-2 border border-yellow-500/30 bg-black/50 px-3 py-1.5">
+          <span className="text-yellow-400 font-bold text-sm">◈</span>
+          <span className="text-primary font-bold text-sm">{coins}</span>
+        </div>
+      </div>
+
+      {/* ── Main layout ─────────────────────────────────────────────────── */}
+      <div className="flex-1 flex overflow-hidden">
+
+        {/* Left panel — skin list */}
+        <div className="w-[280px] shrink-0 border-r border-primary/15 overflow-y-auto bg-black/40"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(200,180,96,0.2) transparent" }}
+        >
+          <div className="p-3 space-y-1">
+            {SKINS.map((skin) => {
+              const skinUnlocked = unlocked.includes(skin.id);
+              const skinEquipped = selected === skin.id;
+              const skinActive = active.id === skin.id;
+              const rc = RARITY_COLORS[skin.rarity];
+
+              return (
+                <motion.button
+                  key={skin.id}
+                  onClick={() => handleCardClick(skin)}
+                  whileHover={{ x: 3 }}
+                  transition={{ duration: 0.12 }}
+                  className={`w-full flex items-center gap-3 p-2.5 text-left transition-colors relative overflow-hidden ${
+                    skinActive
+                      ? "bg-primary/15 border border-primary/50"
+                      : "border border-primary/0 hover:border-primary/20 hover:bg-white/5"
+                  }`}
+                >
+                  {/* Active left bar */}
+                  {skinActive && (
+                    <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary" />
+                  )}
+
+                  {/* Color swatch */}
+                  <div
+                    className="w-10 h-10 shrink-0 flex items-center justify-center relative"
+                    style={{ background: skin.color, border: `1px solid ${rc}55` }}
+                  >
+                    {skinEquipped && (
+                      <span className="text-white text-xs font-bold drop-shadow-lg">✓</span>
+                    )}
+                    {!skinUnlocked && (
+                      <span className="text-white/80 text-xs">🔒</span>
+                    )}
+                    {/* Rarity dot */}
+                    <div
+                      className="absolute -bottom-0.5 -right-0.5 w-2 h-2"
+                      style={{ background: rc }}
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="text-primary text-xs font-bold uppercase truncate">
+                      {skin.name}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span
+                        className="text-[9px] font-bold uppercase tracking-widest"
+                        style={{ color: rc }}
+                      >
+                        {RARITY_LABELS[skin.rarity]}
+                      </span>
+                      {!skinUnlocked && (
+                        <span className="text-yellow-400/70 text-[9px]">◈ {skin.price}</span>
+                      )}
+                    </div>
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right panel — preview + info */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex gap-0 overflow-hidden">
+
+            {/* 3D Viewer */}
+            <div className="flex-1 flex items-center justify-center bg-[#080808] relative overflow-hidden">
+              {/* Background glow behind character */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `radial-gradient(ellipse 50% 60% at 50% 60%, ${active.color}18 0%, transparent 70%)`,
+                }}
+              />
+              <motion.div
+                key={active.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="w-full h-full"
+              >
+                <SkinViewer3D skin={active} height={500} className="w-full h-full" />
+              </motion.div>
+
+              {/* Rarity glow stripe at bottom */}
+              <div
+                className="absolute bottom-0 left-0 right-0 h-0.5"
+                style={{ background: `linear-gradient(90deg, transparent, ${rarityColor}88, transparent)` }}
+              />
+            </div>
+
+            {/* Info panel */}
+            <div className="w-72 shrink-0 flex flex-col border-l border-primary/15 bg-black/50 overflow-y-auto">
+              <div className="p-6 flex flex-col gap-5 flex-1">
+                {/* Name + Rarity */}
+                <div>
+                  <motion.h2
+                    key={active.id + "name"}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="font-title text-2xl tracking-widest text-primary leading-tight"
+                  >
+                    {active.name.toUpperCase()}
+                  </motion.h2>
+                  <div
+                    className="text-[10px] font-bold uppercase tracking-[0.3em] mt-1"
+                    style={{ color: rarityColor }}
+                  >
+                    {RARITY_LABELS[active.rarity]}
+                  </div>
+                </div>
+
+                {/* Rarity stripe */}
+                <div
+                  className="h-px w-full"
+                  style={{ background: `linear-gradient(90deg, ${rarityColor}88, transparent)` }}
+                />
+
+                {/* Description */}
+                <p className="text-primary/60 font-mono text-xs leading-relaxed">
+                  {active.desc}
+                </p>
+
+                {/* Visual style tags */}
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    active.visual.style !== "standard" && active.visual.style.toUpperCase(),
+                    active.visual.hatType !== "none" && active.visual.hatType.replace("_", " ").toUpperCase(),
+                    ...active.visual.extras.map(e => e.replace("_", " ").toUpperCase()),
+                  ].filter(Boolean).map((tag, i) => (
+                    <span
+                      key={i}
+                      className="px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider border"
+                      style={{ borderColor: `${rarityColor}44`, color: `${rarityColor}cc` }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Status messages */}
+                <AnimatePresence>
+                  {saveFlash && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="text-accent text-xs font-mono uppercase tracking-widest"
+                    >
+                      ✓ Tenue équipée
+                    </motion.div>
+                  )}
+                  {buyError && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="text-destructive text-xs font-mono"
+                    >
+                      {buyError}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="flex-1" />
+
+                {/* Action button */}
+                <div className="space-y-2">
+                  {isEquipped ? (
+                    <div className="w-full py-3 text-center text-xs font-mono uppercase tracking-widest border border-accent/40 text-accent">
+                      ✓ ÉQUIPÉE
+                    </div>
+                  ) : isUnlocked ? (
+                    <button
+                      onClick={handleEquip}
+                      className="w-full py-3 bg-primary text-primary-foreground text-xs font-mono uppercase tracking-widest font-bold hover:bg-primary/90 transition-colors"
+                    >
+                      ÉQUIPER
+                    </button>
+                  ) : canAfford ? (
+                    <button
+                      onClick={() => setBuyConfirm(true)}
+                      className="w-full py-3 bg-yellow-500/20 border border-yellow-500/60 text-yellow-300 text-xs font-mono uppercase tracking-widest font-bold hover:bg-yellow-500/30 transition-colors"
+                    >
+                      ◈ {active.price} — ACHETER
+                    </button>
+                  ) : (
+                    <div className="w-full py-3 text-center text-xs font-mono uppercase tracking-widest border border-primary/15 text-primary/25">
+                      ◈ {active.price} — INSUFFISANT
+                    </div>
+                  )}
+
+                  <div className="text-primary/20 font-mono text-[10px] text-center">
+                    {unlocked.length}/{SKINS.length} débloqués
+                  </div>
+                </div>
+              </div>
+
+              {/* Earn hint */}
+              <div className="border-t border-primary/10 px-5 py-3 text-primary/20 font-mono text-[10px] leading-relaxed">
+                ◈ Terminez des niveaux pour gagner des pièces.
+                Niveau élevé + difficulté = plus de récompenses.
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Skin grid */}
-      <div className="flex-1 overflow-auto p-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 max-w-6xl mx-auto">
-          {SKINS.map((skin) => {
-            const isUnlocked = unlocked.includes(skin.id);
-            const isSelected = selected === skin.id;
-            const rarityColor = RARITY_COLORS[skin.rarity];
-
-            return (
-              <motion.div
-                key={skin.id}
-                layout
-                whileHover={{ scale: 1.03, y: -2 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  if (isUnlocked) handleSelect(skin.id);
-                  else setPreview(skin.id);
-                }}
-                className={`relative flex flex-col border cursor-pointer transition-all duration-200 overflow-hidden
-                  ${isSelected
-                    ? "border-primary bg-primary/15 shadow-lg shadow-primary/20"
-                    : isUnlocked
-                      ? "border-primary/30 hover:border-primary/60 bg-black/40 hover:bg-black/60"
-                      : "border-primary/15 bg-black/20 hover:border-primary/30"
-                  }`}
-              >
-                {/* Rarity stripe */}
-                <div
-                  className="absolute top-0 left-0 right-0 h-0.5"
-                  style={{ background: rarityColor }}
-                />
-
-                {/* Selected badge */}
-                {isSelected && (
-                  <div className="absolute top-2 right-2 z-10 text-primary bg-primary/20 border border-primary/40 px-1.5 py-0.5 font-mono text-xs font-bold">
-                    ✓
-                  </div>
-                )}
-
-                {/* Locked overlay */}
-                {!isUnlocked && (
-                  <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[1px]">
-                    <div className="text-2xl mb-1">🔒</div>
-                    <div
-                      className="font-mono text-sm font-bold flex items-center gap-1"
-                      style={{ color: rarityColor }}
-                    >
-                      <span className="text-yellow-400">◈</span> {skin.price}
-                    </div>
-                    <div className="text-primary/40 text-xs font-mono mt-1">Voir l'aperçu</div>
-                  </div>
-                )}
-
-                {/* 3D Preview */}
-                <div className="flex items-center justify-center py-3 bg-black/30">
-                  <SkinPreview3D
-                    skinColor={skin.color}
-                    accentColor={skin.accent}
-                    width={90}
-                    height={120}
-                  />
-                </div>
-
-                {/* Info */}
-                <div className="px-3 pb-3 pt-1">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <div className="text-primary font-mono text-xs font-bold uppercase truncate">
-                      {skin.name}
-                    </div>
-                  </div>
-                  <div
-                    className="text-xs font-mono font-bold tracking-widest mb-1"
-                    style={{ color: rarityColor, fontSize: "9px" }}
-                  >
-                    {RARITY_LABELS[skin.rarity]}
-                  </div>
-                  <p className="text-primary/40 font-mono text-xs leading-relaxed line-clamp-2">
-                    {skin.desc}
-                  </p>
-                  {isUnlocked && !isSelected && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleSelect(skin.id); }}
-                      className="mt-2 w-full text-center text-xs font-mono uppercase tracking-widest border border-primary/30 text-primary/60 hover:border-primary hover:text-primary py-1 transition-colors"
-                    >
-                      ÉQUIPER
-                    </button>
-                  )}
-                  {!isUnlocked && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (coins >= skin.price) setBuyConfirm(skin.id);
-                        else setBuyError("Pas assez de ◈");
-                      }}
-                      className={`mt-2 w-full text-center text-xs font-mono uppercase tracking-widest py-1 transition-colors border
-                        ${coins >= skin.price
-                          ? "border-yellow-500/50 text-yellow-400 hover:border-yellow-400 hover:bg-yellow-400/10"
-                          : "border-primary/15 text-primary/30 cursor-not-allowed"
-                        }`}
-                    >
-                      ◈ {skin.price}
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* Earn coins hint */}
-        <div className="max-w-6xl mx-auto mt-6 border border-primary/10 bg-black/30 px-5 py-3 text-primary/30 font-mono text-xs text-center">
-          ◈ Gagnez des pièces en terminant des niveaux — plus le niveau est élevé, plus vous en gagnez.
-          La difficulté double les récompenses.
-        </div>
-      </div>
-
-      {/* Bottom bar */}
-      <div className="shrink-0 border-t border-primary/20 px-8 py-4 flex justify-between items-center">
-        <button
-          onClick={() => setLocation("/")}
-          className="px-6 py-2 border border-primary/30 text-primary/60 hover:text-primary hover:border-primary uppercase font-mono text-sm transition-colors"
-        >
-          ← RETOUR
-        </button>
-        <div className="text-primary/30 font-mono text-xs">
-          {unlocked.length}/{SKINS.length} tenues débloquées
-        </div>
-      </div>
-
-      {/* Buy confirmation modal */}
+      {/* Buy confirmation */}
       <AnimatePresence>
-        {buyConfirm && (() => {
-          const skin = SKINS.find(s => s.id === buyConfirm);
-          if (!skin) return null;
-          return (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-              onClick={() => setBuyConfirm(null)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, y: 10 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.9 }}
-                onClick={e => e.stopPropagation()}
-                className="border border-primary/40 bg-black/95 p-8 text-center max-w-sm w-full mx-4"
-              >
-                <div className="flex justify-center mb-4">
-                  <SkinPreview3D skinColor={skin.color} accentColor={skin.accent} width={100} height={130} />
-                </div>
-                <div className="text-primary font-title text-2xl tracking-widest mb-1">{skin.name}</div>
-                <div
-                  className="font-mono text-xs mb-3 tracking-widest"
-                  style={{ color: RARITY_COLORS[skin.rarity] }}
-                >
-                  {RARITY_LABELS[skin.rarity]}
-                </div>
-                <p className="text-primary/50 font-mono text-xs mb-5">{skin.desc}</p>
-                <div className="flex items-center justify-center gap-2 mb-6 text-yellow-400 font-mono text-lg font-bold">
-                  <span>◈</span><span>{skin.price}</span>
-                  <span className="text-primary/30 text-xs ml-2">({coins} disponibles)</span>
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={() => setBuyConfirm(null)}
-                    className="px-5 py-2 border border-primary/30 text-primary/60 hover:text-primary font-mono text-sm uppercase"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={() => handleBuy(buyConfirm)}
-                    className="px-5 py-2 bg-primary text-primary-foreground font-mono text-sm uppercase font-bold hover:bg-primary/90"
-                  >
-                    Acheter
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          );
-        })()}
-      </AnimatePresence>
-
-      {/* Preview modal for locked skins */}
-      <AnimatePresence>
-        {preview && previewSkin && (
+        {buyConfirm && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            onClick={() => setPreview(null)}
+            onClick={() => setBuyConfirm(false)}
           >
             <motion.div
               initial={{ scale: 0.9, y: 10 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9 }}
               onClick={e => e.stopPropagation()}
-              className="border border-primary/30 bg-black/95 p-8 text-center max-w-xs w-full mx-4"
+              className="border border-primary/40 bg-[#0d0d08] p-8 max-w-xs w-full mx-4 text-center"
             >
-              <div className="flex justify-center mb-4">
-                <SkinPreview3D skinColor={previewSkin.color} accentColor={previewSkin.accent} width={110} height={145} />
-              </div>
-              <div className="text-primary font-title text-2xl tracking-widest mb-1">{previewSkin.name}</div>
               <div
-                className="font-mono text-xs mb-3 tracking-widest"
-                style={{ color: RARITY_COLORS[previewSkin.rarity] }}
+                className="font-title text-xl tracking-widest mb-1 text-primary"
               >
-                {RARITY_LABELS[previewSkin.rarity]}
+                {active.name.toUpperCase()}
               </div>
-              <p className="text-primary/50 font-mono text-xs mb-5">{previewSkin.desc}</p>
-              <button
-                onClick={() => {
-                  setPreview(null);
-                  if (coins >= previewSkin.price) setBuyConfirm(previewSkin.id);
-                  else setBuyError("Pas assez de ◈");
-                }}
-                className={`w-full py-2 font-mono text-sm uppercase font-bold transition-colors border
-                  ${coins >= previewSkin.price
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90 border-primary"
-                    : "border-primary/20 text-primary/30 cursor-not-allowed"
-                  }`}
+              <div
+                className="font-mono text-[10px] mb-4 tracking-widest uppercase"
+                style={{ color: rarityColor }}
               >
-                ◈ {previewSkin.price} — {coins >= previewSkin.price ? "Acheter" : "Pas assez de pièces"}
-              </button>
-              <button
-                onClick={() => setPreview(null)}
-                className="mt-2 w-full py-1.5 border border-primary/20 text-primary/40 hover:text-primary font-mono text-xs uppercase"
-              >
-                Fermer
-              </button>
+                {RARITY_LABELS[active.rarity]}
+              </div>
+              <p className="text-primary/40 font-mono text-xs mb-5 leading-relaxed">{active.desc}</p>
+              <div className="text-yellow-400 font-mono font-bold text-lg mb-1">◈ {active.price}</div>
+              <div className="text-primary/30 font-mono text-xs mb-6">({coins} pièces disponibles)</div>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setBuyConfirm(false)}
+                  className="px-5 py-2 border border-primary/30 text-primary/60 hover:text-primary font-mono text-xs uppercase transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleBuy}
+                  className="px-5 py-2 bg-primary text-primary-foreground font-mono text-xs uppercase font-bold hover:bg-primary/90 transition-colors"
+                >
+                  Acheter
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
