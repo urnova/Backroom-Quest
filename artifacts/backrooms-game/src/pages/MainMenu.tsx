@@ -12,7 +12,8 @@ export default function MainMenu() {
   const menuItems = [
     { href: "/solo", label: "JOUER EN SOLO", delay: 0.3 },
     { href: "/multiplayer", label: "MULTIJOUEUR", delay: 0.5 },
-    { href: "/options", label: "OPTIONS", delay: 0.7 },
+    { href: "/skin", label: "PERSONNALISATION", delay: 0.65 },
+    { href: "/options", label: "OPTIONS", delay: 0.8 },
   ];
 
   return (

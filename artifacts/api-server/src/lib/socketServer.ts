@@ -28,13 +28,12 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
 
     socket.on("room:join", (data: { code: string; playerId: string }, ack) => {
       const room = getRoom(data.code);
-      if (!room) {
-        ack?.({ error: "Room not found" });
-        return;
-      }
+      if (!room) { ack?.({ error: "Room not found" }); return; }
       socket.join(`room:${data.code}`);
       socket.data.roomCode = data.code;
       socket.data.playerId = data.playerId;
+      const player = room.players.get(data.playerId);
+      socket.data.playerName = player?.name ?? "?";
       io.to(`room:${data.code}`).emit("room:updated", roomToJSON(room));
       ack?.({ ok: true, state: getRoomState(room) });
       logger.info({ code: data.code, playerId: data.playerId }, "Player joined socket room");
@@ -61,22 +60,26 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
     socket.on("player:attack", (data: { code: string; playerId: string; mobId: string; damage: number }, ack) => {
       const room = getRoom(data.code);
       if (!room) { ack?.({ error: "Room not found" }); return; }
-
       const attackingPlayer = room.players.get(data.playerId);
-      if (!attackingPlayer || !attackingPlayer.isAlive) {
-        ack?.({ error: "Player not alive" });
-        return;
-      }
-
+      if (!attackingPlayer || !attackingPlayer.isAlive) { ack?.({ error: "Player not alive" }); return; }
       const mob = damageMob(data.code, data.mobId, data.damage);
       if (!mob) { ack?.({ error: "Mob not found" }); return; }
-
       io.to(`room:${data.code}`).emit("mob:damaged", { mobId: data.mobId, hp: mob.hp, isAlive: mob.isAlive });
       if (!mob.isAlive) {
         io.to(`room:${data.code}`).emit("mob:died", { mobId: data.mobId });
         logger.info({ code: data.code, mobId: data.mobId, mobType: mob.type }, "Mob killed");
       }
       ack?.({ ok: true, mob });
+    });
+
+    socket.on("player:heal", (data: { code: string; playerId: string; amount: number }) => {
+      const room = getRoom(data.code);
+      if (!room) return;
+      const player = room.players.get(data.playerId);
+      if (!player || !player.isAlive) return;
+      const amount = Math.min(data.amount ?? 40, 100);
+      player.hp = Math.min(player.maxHp, player.hp + amount);
+      io.to(`room:${data.code}`).emit("player:healed", { playerId: data.playerId, hp: player.hp });
     });
 
     socket.on("player:emote", (data: { code: string; playerId: string; emote: string }) => {
@@ -94,12 +97,24 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
       }
     });
 
+    socket.on("player:kick", (data: { code: string; playerId: string; targetId: string }) => {
+      const room = getRoom(data.code);
+      if (!room) return;
+      const player = room.players.get(data.playerId);
+      if (!player?.isHost) return;
+      const target = room.players.get(data.targetId);
+      if (!target) return;
+      leaveRoom(data.code, data.targetId);
+      io.to(`room:${data.code}`).emit("player:kicked", { targetId: data.targetId, targetName: target.name });
+      io.to(`room:${data.code}`).emit("room:updated", roomToJSON(getRoom(data.code)!));
+      logger.info({ code: data.code, targetId: data.targetId, targetName: target.name }, "Player kicked by host");
+    });
+
     socket.on("level:complete", (data: { code: string; playerId: string }, ack) => {
       const room = getRoom(data.code);
       if (!room) { ack?.({ error: "Room not found" }); return; }
       const player = room.players.get(data.playerId);
       if (!player || !player.isAlive) { ack?.({ error: "Player not alive" }); return; }
-
       const continued = advanceLevel(data.code);
       if (!continued) {
         io.to(`room:${data.code}`).emit("game:won", { message: "Vous avez survécu au Liminal !" });
@@ -108,9 +123,7 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
         return;
       }
       for (const p of room.players.values()) {
-        if (room.difficulty !== "nightmare") {
-          saveProgress(p.id, p.name, room.currentLevel, room.difficulty);
-        }
+        if (room.difficulty !== "nightmare") saveProgress(p.id, p.name, room.currentLevel, room.difficulty);
       }
       io.to(`room:${data.code}`).emit("level:advanced", {
         newLevel: room.currentLevel,
@@ -141,10 +154,16 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
     });
 
     socket.on("disconnect", () => {
-      const { roomCode, playerId } = socket.data;
+      clearInterval(tickInterval);
+      const { roomCode, playerId, playerName } = socket.data;
       if (roomCode && playerId) {
+        const room = getRoom(roomCode);
+        const player = room?.players.get(playerId);
+        const name = player?.name ?? playerName ?? "Un joueur";
         leaveRoom(roomCode, playerId);
-        io.to(`room:${roomCode}`).emit("player:left", { playerId });
+        io.to(`room:${roomCode}`).emit("player:left", { playerId, playerName: name });
+        const updatedRoom = getRoom(roomCode);
+        if (updatedRoom) io.to(`room:${roomCode}`).emit("room:updated", roomToJSON(updatedRoom));
         logger.info({ roomCode, playerId }, "Player disconnected");
       }
     });
@@ -162,10 +181,6 @@ export function initSocketServer(httpServer: HttpServer): SocketServer {
         }
       }
     }, 50);
-
-    socket.on("disconnect", () => {
-      clearInterval(tickInterval);
-    });
   });
 
   return io;

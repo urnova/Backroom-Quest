@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { generateMap } from "./MapGenerator";
-import { SpriteManager } from "./SpriteManager";
 import { getProceduralTexture } from "./MobTextures";
+import { CharacterRenderer } from "./CharacterRenderer";
+import { WorldItem, spawnItems, updateItems, checkItemPickup, clearItems } from "./ItemManager";
 import { LevelConfig, GameState, Mob } from "../types/game";
 import { InputHandler } from "./InputHandler";
 
@@ -9,10 +10,11 @@ export class BackroomsEngine {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
-  private spriteManager: SpriteManager;
+  private characterRenderer: CharacterRenderer;
 
   private map: number[][] = [];
   private wallsMesh: THREE.InstancedMesh | null = null;
+  private levelObjects: THREE.Object3D[] = [];
   private exitMesh: THREE.Mesh | null = null;
   private exitPosition: { x: number; y: number } | null = null;
   private flashlight: THREE.SpotLight;
@@ -22,6 +24,8 @@ export class BackroomsEngine {
   private playerX = 5;
   private playerY = 5;
   private playerAngle = 0;
+  private speedMultiplier = 1;
+  private speedBoostTimer = 0;
 
   public isFlashlightOn = true;
   public webglAvailable = true;
@@ -29,6 +33,13 @@ export class BackroomsEngine {
   private bobTime = 0;
   private damageOverlay: THREE.Mesh | null = null;
   private renderQuality: "low" | "medium" | "high" = "medium";
+  private items: WorldItem[] = [];
+
+  public onItemPickup?: (item: WorldItem) => void;
+  public onNearItem?: (label: string | null) => void;
+
+  private currentLevelConfig: LevelConfig | null = null;
+  private currentSeed = "";
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -46,10 +57,8 @@ export class BackroomsEngine {
     } catch {
       this.webglAvailable = false;
       this.renderer = {
-        setSize: () => {},
-        setPixelRatio: () => {},
-        render: () => {},
-        dispose: () => {},
+        setSize: () => {}, setPixelRatio: () => {},
+        render: () => {}, dispose: () => {},
       } as unknown as THREE.WebGLRenderer;
     }
     this.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -58,8 +67,7 @@ export class BackroomsEngine {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 60);
-
-    this.spriteManager = new SpriteManager(this.scene);
+    this.characterRenderer = new CharacterRenderer(this.scene);
 
     this.ambientLight = new THREE.AmbientLight(0xffffff, levelConfig.ambientLight);
     this.scene.add(this.ambientLight);
@@ -74,20 +82,28 @@ export class BackroomsEngine {
   }
 
   loadLevel(config: LevelConfig, seedStr: string) {
+    this.currentLevelConfig = config;
+    this.currentSeed = seedStr;
+
     if (this.wallsMesh) this.scene.remove(this.wallsMesh);
+    for (const obj of this.levelObjects) this.scene.remove(obj);
+    this.levelObjects = [];
     if (this.exitMesh) this.scene.remove(this.exitMesh);
     for (const pl of this.pointLights) this.scene.remove(pl);
     this.pointLights = [];
     this.exitPosition = null;
+
+    clearItems(this.items, this.scene);
+    this.items = [];
 
     this.scene.fog = new THREE.FogExp2(config.wallColor, config.fogDensity);
     this.ambientLight.intensity = config.ambientLight;
 
     this.map = generateMap(seedStr, config.width, config.height);
 
-    const wallGeo = new THREE.BoxGeometry(1, 3, 1);
     const wallTex = getProceduralTexture("wall", config.wallColor);
     const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.85 });
+    const wallGeo = new THREE.BoxGeometry(1, 3, 1);
 
     let wallCount = 0;
     for (let y = 0; y < config.height; y++)
@@ -108,25 +124,19 @@ export class BackroomsEngine {
 
           const exitGeo = new THREE.PlaneGeometry(0.9, 2.8);
           const exitMat = new THREE.MeshBasicMaterial({
-            color: 0x00ff80,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.9,
+            color: 0x00ff80, side: THREE.DoubleSide, transparent: true, opacity: 0.9,
           });
           this.exitMesh = new THREE.Mesh(exitGeo, exitMat);
           this.exitMesh.position.set(x, 1.4, y);
           this.scene.add(this.exitMesh);
 
-          const glowGeo = new THREE.PlaneGeometry(2.5, 3.5);
           const glowMat = new THREE.MeshBasicMaterial({
-            color: 0x00ff80,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.08,
+            color: 0x00ff80, side: THREE.DoubleSide, transparent: true, opacity: 0.08,
           });
-          const glow = new THREE.Mesh(glowGeo, glowMat);
+          const glow = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.5), glowMat);
           glow.position.set(x, 1.75, y);
           this.scene.add(glow);
+          this.levelObjects.push(glow);
 
           const exitLight = new THREE.PointLight(0x00ff80, 3, 8);
           exitLight.position.set(x, 1.5, y);
@@ -135,7 +145,6 @@ export class BackroomsEngine {
         }
       }
     }
-
     this.scene.add(this.wallsMesh);
 
     const floorTex = getProceduralTexture("floor", config.floorColor);
@@ -143,56 +152,56 @@ export class BackroomsEngine {
     const planeGeo = new THREE.PlaneGeometry(config.width, config.height);
     planeGeo.rotateX(-Math.PI / 2);
 
-    const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9 });
-    const floor = new THREE.Mesh(planeGeo, floorMat);
+    const floor = new THREE.Mesh(planeGeo, new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9 }));
     floor.position.set(config.width / 2 - 0.5, 0, config.height / 2 - 0.5);
     this.scene.add(floor);
+    this.levelObjects.push(floor);
 
-    const ceilMat = new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 0.5 });
-    const ceil = new THREE.Mesh(planeGeo.clone(), ceilMat);
+    const ceil = new THREE.Mesh(planeGeo.clone(), new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 0.5 }));
     ceil.position.set(config.width / 2 - 0.5, 3, config.height / 2 - 0.5);
     ceil.rotation.x = Math.PI;
     this.scene.add(ceil);
+    this.levelObjects.push(ceil);
 
     this.playerX = Math.floor(config.width / 2);
     this.playerY = Math.floor(config.height / 2);
     let attempts = 0;
-    while (
-      this.map[Math.floor(this.playerY)]?.[Math.floor(this.playerX)] !== 0 &&
-      attempts < 1000
-    ) {
+    while (this.map[Math.floor(this.playerY)]?.[Math.floor(this.playerX)] !== 0 && attempts < 1000) {
       this.playerX = 2 + Math.floor(Math.random() * (config.width - 4));
       this.playerY = 2 + Math.floor(Math.random() * (config.height - 4));
       attempts++;
     }
+
+    this.items = spawnItems(this.map, config.width, config.height, 0);
+  }
+
+  activateSpeedBoost(duration = 30) {
+    this.speedMultiplier = 1.5;
+    this.speedBoostTimer = duration;
   }
 
   update(dt: number, input: InputHandler) {
+    if (this.speedBoostTimer > 0) {
+      this.speedBoostTimer -= dt;
+      if (this.speedBoostTimer <= 0) {
+        this.speedMultiplier = 1;
+        this.speedBoostTimer = 0;
+      }
+    }
+
     if (input.isPointerLocked) {
       this.playerAngle -= input.movementX * 0.002;
       input.movementX = 0;
     }
 
-    const speed = (input.isSprint() ? 4.0 : 2.5) * dt;
-    let dx = 0;
-    let dy = 0;
+    const baseSpeed = input.isSprint() ? 4.0 : 2.5;
+    const speed = baseSpeed * this.speedMultiplier * dt;
+    let dx = 0, dy = 0;
 
-    if (input.isForward()) {
-      dx += Math.cos(this.playerAngle) * speed;
-      dy += Math.sin(this.playerAngle) * speed;
-    }
-    if (input.isBackward()) {
-      dx -= Math.cos(this.playerAngle) * speed;
-      dy -= Math.sin(this.playerAngle) * speed;
-    }
-    if (input.isStrafeLeft()) {
-      dx += Math.cos(this.playerAngle - Math.PI / 2) * speed;
-      dy += Math.sin(this.playerAngle - Math.PI / 2) * speed;
-    }
-    if (input.isStrafeRight()) {
-      dx += Math.cos(this.playerAngle + Math.PI / 2) * speed;
-      dy += Math.sin(this.playerAngle + Math.PI / 2) * speed;
-    }
+    if (input.isForward()) { dx += Math.cos(this.playerAngle) * speed; dy += Math.sin(this.playerAngle) * speed; }
+    if (input.isBackward()) { dx -= Math.cos(this.playerAngle) * speed; dy -= Math.sin(this.playerAngle) * speed; }
+    if (input.isStrafeLeft()) { dx += Math.cos(this.playerAngle - Math.PI / 2) * speed; dy += Math.sin(this.playerAngle - Math.PI / 2) * speed; }
+    if (input.isStrafeRight()) { dx += Math.cos(this.playerAngle + Math.PI / 2) * speed; dy += Math.sin(this.playerAngle + Math.PI / 2) * speed; }
 
     const margin = 0.3;
     const nx = this.playerX + dx;
@@ -200,15 +209,10 @@ export class BackroomsEngine {
     const mx = Math.floor(this.playerX);
     const my = Math.floor(this.playerY);
 
-    const newMX = Math.floor(nx + (dx > 0 ? margin : -margin));
-    const newMY = Math.floor(ny + (dy > 0 ? margin : -margin));
-
-    if (newMX >= 0 && newMX < this.map[0]?.length && this.map[my]?.[newMX] === 0) {
+    if (Math.floor(nx + (dx > 0 ? margin : -margin)) >= 0 && this.map[my]?.[Math.floor(nx + (dx > 0 ? margin : -margin))] === 0)
       this.playerX += dx;
-    }
-    if (newMY >= 0 && newMY < this.map.length && this.map[newMY]?.[mx] === 0) {
+    if (Math.floor(ny + (dy > 0 ? margin : -margin)) >= 0 && this.map[Math.floor(ny + (dy > 0 ? margin : -margin))]?.[mx] === 0)
       this.playerY += dy;
-    }
 
     this.bobTime += dt;
     const isMoving = dx !== 0 || dy !== 0;
@@ -221,8 +225,7 @@ export class BackroomsEngine {
     if (this.isFlashlightOn) {
       this.flashlight.position.copy(this.camera.position);
       this.flashlight.target.position.set(
-        this.playerX + Math.cos(this.playerAngle) * 10,
-        1.55,
+        this.playerX + Math.cos(this.playerAngle) * 10, 1.55,
         this.playerY + Math.sin(this.playerAngle) * 10
       );
       this.flashlight.target.updateMatrixWorld();
@@ -235,16 +238,26 @@ export class BackroomsEngine {
 
     if (this.exitMesh) {
       this.exitMesh.rotation.y += dt * 0.6;
-      (this.exitMesh.material as THREE.MeshBasicMaterial).opacity =
-        0.7 + Math.sin(Date.now() * 0.004) * 0.2;
+      (this.exitMesh.material as THREE.MeshBasicMaterial).opacity = 0.7 + Math.sin(Date.now() * 0.004) * 0.2;
     }
 
+    updateItems(this.items, dt, this.scene);
+    const picked = checkItemPickup(this.items, this.playerX, this.playerY);
+    if (picked) {
+      picked.pickedUp = true;
+      if (this.onItemPickup) this.onItemPickup(picked);
+    }
+
+    const nearItem = this.items.find(it => !it.pickedUp && Math.sqrt((it.x - this.playerX) ** 2 + (it.y - this.playerY) ** 2) < 2.5);
+    if (this.onNearItem) this.onNearItem(nearItem ? nearItem.type.toUpperCase() : null);
+
+    this.characterRenderer.update(dt);
     this.renderer.render(this.scene, this.camera);
   }
 
   syncState(state: GameState, myId: string) {
-    this.spriteManager.updatePlayers(state.players, myId);
-    this.spriteManager.updateMobs(state.mobs);
+    this.characterRenderer.updateMobs(state.mobs);
+    this.characterRenderer.updatePlayers(state.players, myId);
   }
 
   getPlayerState() {
@@ -258,7 +271,6 @@ export class BackroomsEngine {
   getNearestMobInRange(mobs: Mob[], range: number): string | null {
     let nearest: string | null = null;
     let nearestDist = range;
-
     for (const mob of mobs) {
       if (!mob.isAlive) continue;
       const dx = mob.x - this.playerX;
@@ -269,10 +281,7 @@ export class BackroomsEngine {
         let angleDiff = mobAngle - this.playerAngle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        if (Math.abs(angleDiff) < Math.PI * 0.65) {
-          nearestDist = d;
-          nearest = mob.id;
-        }
+        if (Math.abs(angleDiff) < Math.PI * 0.65) { nearestDist = d; nearest = mob.id; }
       }
     }
     return nearest;
@@ -285,39 +294,25 @@ export class BackroomsEngine {
     return Math.sqrt(dx * dx + dy * dy) < 1.5;
   }
 
-  toggleFlashlight() {
-    this.isFlashlightOn = !this.isFlashlightOn;
-  }
+  toggleFlashlight() { this.isFlashlightOn = !this.isFlashlightOn; }
 
   playAttackAnimation() {
     this.camera.fov = 75;
     this.camera.updateProjectionMatrix();
-    setTimeout(() => {
-      this.camera.fov = 70;
-      this.camera.updateProjectionMatrix();
-    }, 100);
+    setTimeout(() => { this.camera.fov = 70; this.camera.updateProjectionMatrix(); }, 100);
   }
 
   flashDamage() {
     if (!this.damageOverlay) {
-      const geo = new THREE.PlaneGeometry(2, 2);
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xff0000,
-        transparent: true,
-        opacity: 0,
-        depthTest: false,
-      });
-      this.damageOverlay = new THREE.Mesh(geo, mat);
+      const mat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0, depthTest: false });
+      this.damageOverlay = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
       this.damageOverlay.position.set(0, 0, -0.5);
       this.camera.add(this.damageOverlay);
       this.scene.add(this.camera);
     }
     const mat = this.damageOverlay.material as THREE.MeshBasicMaterial;
     mat.opacity = 0.4;
-    const fade = () => {
-      mat.opacity = Math.max(0, mat.opacity - 0.04);
-      if (mat.opacity > 0) setTimeout(fade, 30);
-    };
+    const fade = () => { mat.opacity = Math.max(0, mat.opacity - 0.04); if (mat.opacity > 0) setTimeout(fade, 30); };
     setTimeout(fade, 80);
   }
 
@@ -330,6 +325,7 @@ export class BackroomsEngine {
   dispose() {
     window.removeEventListener("resize", this.onResize);
     this.renderer.dispose();
-    this.spriteManager.dispose();
+    this.characterRenderer.dispose();
+    clearItems(this.items, this.scene);
   }
 }

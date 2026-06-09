@@ -2,8 +2,6 @@ import { Keybindings, AZERTY_BINDINGS } from "../context/SettingsContext";
 
 export class InputHandler {
   keys: { [key: string]: boolean } = {};
-  mouseX = 0;
-  mouseY = 0;
   movementX = 0;
   movementY = 0;
   isPointerLocked = false;
@@ -15,12 +13,14 @@ export class InputHandler {
   onFlashlight?: () => void;
   onChat?: () => void;
   onEscape?: () => void;
+  onInteract?: () => void;
 
   constructor(private canvas: HTMLCanvasElement, keybindings?: Keybindings) {
     this.keybindings = keybindings ?? AZERTY_BINDINGS;
     window.addEventListener("keydown", this.handleKeyDown);
     window.addEventListener("keyup", this.handleKeyUp);
     document.addEventListener("pointerlockchange", this.handlePointerLockChange);
+    document.addEventListener("pointerlockerror", this.handlePointerLockError);
     canvas.addEventListener("click", this.handleClick);
     document.addEventListener("mousemove", this.handleMouseMove);
   }
@@ -46,11 +46,15 @@ export class InputHandler {
   }
 
   requestPointerLock() {
-    this.canvas.requestPointerLock();
+    try {
+      this.canvas.requestPointerLock();
+    } catch (_e) {}
   }
 
   exitPointerLock() {
-    document.exitPointerLock();
+    try {
+      document.exitPointerLock();
+    } catch (_e) {}
   }
 
   private handleKeyDown = (e: KeyboardEvent) => {
@@ -81,14 +85,16 @@ export class InputHandler {
     if (key === this.keybindings.emote && this.onEmoteDown) {
       this.onEmoteDown();
     }
+
+    if (key === "f" && this.onInteract) {
+      this.onInteract();
+    }
   };
 
   private handleKeyUp = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
     const key = e.key.toLowerCase();
     this.keys[key] = false;
-
     if (key === this.keybindings.emote && this.onEmoteUp) {
       this.onEmoteUp();
     }
@@ -97,15 +103,17 @@ export class InputHandler {
   private handleClick = (_e: MouseEvent) => {
     if (!this.isPointerLocked) {
       this.requestPointerLock();
-      return;
-    }
-    if (this.onAttack) {
-      this.onAttack();
+    } else {
+      if (this.onAttack) this.onAttack();
     }
   };
 
   private handlePointerLockChange = () => {
     this.isPointerLocked = document.pointerLockElement === this.canvas;
+  };
+
+  private handlePointerLockError = () => {
+    this.isPointerLocked = false;
   };
 
   private handleMouseMove = (e: MouseEvent) => {
@@ -121,6 +129,7 @@ export class InputHandler {
     window.removeEventListener("keydown", this.handleKeyDown);
     window.removeEventListener("keyup", this.handleKeyUp);
     document.removeEventListener("pointerlockchange", this.handlePointerLockChange);
+    document.removeEventListener("pointerlockerror", this.handlePointerLockError);
     this.canvas.removeEventListener("click", this.handleClick);
     document.removeEventListener("mousemove", this.handleMouseMove);
   }

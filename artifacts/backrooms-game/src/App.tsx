@@ -13,6 +13,7 @@ import Game from "./pages/Game";
 import GameOver from "./pages/GameOver";
 import Victory from "./pages/Victory";
 import OptionsMenu from "./pages/OptionsMenu";
+import SkinSelector from "./pages/SkinSelector";
 import NotFound from "./pages/not-found";
 import CRTOverlay from "./components/CRTOverlay";
 
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/gameover" component={GameOver} />
       <Route path="/victory" component={Victory} />
       <Route path="/options" component={OptionsMenu} />
+      <Route path="/skin" component={SkinSelector} />
       <Route component={NotFound} />
     </Switch>
   );
