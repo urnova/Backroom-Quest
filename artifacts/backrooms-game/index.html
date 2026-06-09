@@ -1,22 +1,57 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Backrooms Game</title>
-    <meta name="description" content="Backrooms Game — built on Replit. Update this description to reflect the app." />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>The Liminal</title>
+    <meta name="description" content="The Liminal — un jeu d'horreur multijoueur. Survivez dans les espaces entre les mondes." />
     <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Backrooms Game" />
-    <meta property="og:description" content="Backrooms Game — built on Replit. Update this description to reflect the app." />
+    <meta property="og:title" content="The Liminal" />
+    <meta property="og:description" content="The Liminal — un jeu d'horreur multijoueur. 20 niveaux. Des entités. Pas de pitié." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Backrooms Game" />
-    <meta name="twitter:description" content="Backrooms Game — built on Replit. Update this description to reflect the app." />
+    <meta name="twitter:title" content="The Liminal" />
+    <meta name="twitter:description" content="The Liminal — un jeu d'horreur multijoueur." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Creepster&display=swap" rel="stylesheet">
+
+    <!--
+      Auto-bust stale Vite module cache.
+      When the browser has old cached @vite/client or @react-refresh that
+      don't match the current dev server, module SyntaxErrors fire.
+      This script catches those errors and forces one hard reload via a
+      cache-busting URL, so the user never sees a blank page.
+    -->
+    <script>
+      (function () {
+        var BUST_KEY = '__liminal_bust__';
+        // If we arrived via a bust redirect, clean the URL but mark success
+        if (location.search.indexOf('_r=') !== -1) {
+          history.replaceState(null, '', location.pathname + location.hash);
+          sessionStorage.removeItem(BUST_KEY);
+        }
+        window.addEventListener('error', function (e) {
+          var msg = e && e.message ? e.message : '';
+          var isStaleModule =
+            msg.indexOf('does not provide an export') !== -1 ||
+            msg.indexOf('createHotContext') !== -1 ||
+            msg.indexOf('injectIntoGlobalHook') !== -1 ||
+            msg.indexOf('Failed to fetch dynamically imported') !== -1;
+          if (isStaleModule && !sessionStorage.getItem(BUST_KEY)) {
+            sessionStorage.setItem(BUST_KEY, '1');
+            location.replace(location.pathname + '?_r=' + Date.now() + location.hash);
+          }
+        }, true);
+        // Auto-clear flag after 6 s so future errors (if any) can retry
+        setTimeout(function () { sessionStorage.removeItem(BUST_KEY); }, 6000);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
