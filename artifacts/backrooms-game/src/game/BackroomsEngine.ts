@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { generateMap } from "./MapGenerator";
 import { SpriteManager } from "./SpriteManager";
 import { getProceduralTexture } from "./MobTextures";
-import { LevelConfig, GameState } from "../types/game";
+import { LevelConfig, GameState, Mob } from "../types/game";
 import { InputHandler } from "./InputHandler";
 
 export class BackroomsEngine {
@@ -10,73 +10,69 @@ export class BackroomsEngine {
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
   private spriteManager: SpriteManager;
-  
+
   private map: number[][] = [];
   private wallsMesh: THREE.InstancedMesh | null = null;
   private exitMesh: THREE.Mesh | null = null;
+  private exitPosition: { x: number; y: number } | null = null;
   private flashlight: THREE.SpotLight;
   private ambientLight: THREE.AmbientLight;
-  
+
   private playerX = 5;
   private playerY = 5;
   private playerAngle = 0;
-  
-  public isFlashlightOn = true;
 
+  public isFlashlightOn = true;
   public webglAvailable = true;
+
+  private bobTime = 0;
+  private damageOverlay: THREE.Mesh | null = null;
 
   constructor(canvas: HTMLCanvasElement, levelConfig: LevelConfig, seedStr: string) {
     try {
       this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "low-power" });
     } catch {
-      // WebGL not available — create a dummy renderer to avoid crashes
       this.webglAvailable = false;
       this.renderer = { setSize: () => {}, setPixelRatio: () => {}, render: () => {}, dispose: () => {} } as unknown as THREE.WebGLRenderer;
     }
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    // Lower res for retro feel
-    this.renderer.setPixelRatio(0.5); 
+    this.renderer.setPixelRatio(0.6);
 
     this.scene = new THREE.Scene();
-    
     this.camera = new THREE.PerspectiveCamera(66, window.innerWidth / window.innerHeight, 0.1, 50);
-    
+
     this.spriteManager = new SpriteManager(this.scene);
-    
+
     this.ambientLight = new THREE.AmbientLight(0xffffff, levelConfig.ambientLight);
     this.scene.add(this.ambientLight);
-    
-    this.flashlight = new THREE.SpotLight(0xffffee, 2, 20, Math.PI / 4, 0.5, 1);
+
+    this.flashlight = new THREE.SpotLight(0xffffee, 2.5, 22, Math.PI / 4, 0.5, 1);
     this.flashlight.position.set(0, 0, 0);
     this.scene.add(this.flashlight);
     this.scene.add(this.flashlight.target);
 
     this.loadLevel(levelConfig, seedStr);
-
     window.addEventListener("resize", this.onResize);
   }
 
   loadLevel(config: LevelConfig, seedStr: string) {
-    // Clear old meshes
     if (this.wallsMesh) this.scene.remove(this.wallsMesh);
     if (this.exitMesh) this.scene.remove(this.exitMesh);
-    
+    this.exitPosition = null;
+
     this.scene.fog = new THREE.FogExp2(config.wallColor, config.fogDensity);
     this.ambientLight.intensity = config.ambientLight;
 
     this.map = generateMap(seedStr, config.width, config.height);
 
-    // Build walls
     const wallGeo = new THREE.BoxGeometry(1, 3, 1);
     const wallTex = getProceduralTexture("wall", config.wallColor);
-    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.8 });
-    
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.9 });
+
     let wallCount = 0;
-    for (let y = 0; y < config.height; y++) {
-      for (let x = 0; x < config.width; x++) {
+    for (let y = 0; y < config.height; y++)
+      for (let x = 0; x < config.width; x++)
         if (this.map[y][x] === 1) wallCount++;
-      }
-    }
 
     this.wallsMesh = new THREE.InstancedMesh(wallGeo, wallMat, wallCount);
     const matrix = new THREE.Matrix4();
@@ -88,90 +84,121 @@ export class BackroomsEngine {
           matrix.setPosition(x, 1.5, y);
           this.wallsMesh.setMatrixAt(idx++, matrix);
         } else if (this.map[y][x] === 2) {
-          // Exit portal
-          const exitGeo = new THREE.PlaneGeometry(1, 2);
-          const exitMat = new THREE.MeshBasicMaterial({ color: 0x00ff80, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+          this.exitPosition = { x, y };
+
+          const exitGeo = new THREE.PlaneGeometry(0.8, 2.4);
+          const exitMat = new THREE.MeshBasicMaterial({
+            color: 0x00ff80,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.85,
+          });
           this.exitMesh = new THREE.Mesh(exitGeo, exitMat);
-          this.exitMesh.position.set(x, 1, y);
+          this.exitMesh.position.set(x, 1.2, y);
           this.scene.add(this.exitMesh);
+
+          const glowGeo = new THREE.PlaneGeometry(2, 3);
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: 0x00ff80,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.12,
+          });
+          const glow = new THREE.Mesh(glowGeo, glowMat);
+          glow.position.set(x, 1.5, y);
+          this.scene.add(glow);
+
+          const exitLight = new THREE.PointLight(0x00ff80, 2, 6);
+          exitLight.position.set(x, 1.5, y);
+          this.scene.add(exitLight);
         }
       }
     }
-    
+
     this.scene.add(this.wallsMesh);
 
-    // Floor and Ceiling
     const floorTex = getProceduralTexture("floor", config.floorColor);
     const ceilTex = getProceduralTexture("ceiling", config.ceilColor);
     const planeGeo = new THREE.PlaneGeometry(config.width, config.height);
     planeGeo.rotateX(-Math.PI / 2);
-    
+
     const floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9 });
     const floor = new THREE.Mesh(planeGeo, floorMat);
-    floor.position.set(config.width/2 - 0.5, 0, config.height/2 - 0.5);
+    floor.position.set(config.width / 2 - 0.5, 0, config.height / 2 - 0.5);
     this.scene.add(floor);
 
     const ceilMat = new THREE.MeshStandardMaterial({ map: ceilTex, roughness: 0.5 });
-    const ceil = new THREE.Mesh(planeGeo, ceilMat);
-    ceil.position.set(config.width/2 - 0.5, 3, config.height/2 - 0.5);
-    ceil.rotation.x = Math.PI; // face down
+    const ceil = new THREE.Mesh(planeGeo.clone(), ceilMat);
+    ceil.position.set(config.width / 2 - 0.5, 3, config.height / 2 - 0.5);
+    ceil.rotation.x = Math.PI;
     this.scene.add(ceil);
 
-    // Find valid spawn point near center
     this.playerX = Math.floor(config.width / 2);
     this.playerY = Math.floor(config.height / 2);
-    while (this.map[Math.floor(this.playerY)][Math.floor(this.playerX)] !== 0) {
-      this.playerX++;
+    let attempts = 0;
+    while (this.map[Math.floor(this.playerY)]?.[Math.floor(this.playerX)] !== 0 && attempts < 1000) {
+      this.playerX = 2 + Math.floor(Math.random() * (config.width - 4));
+      this.playerY = 2 + Math.floor(Math.random() * (config.height - 4));
+      attempts++;
     }
   }
 
   update(dt: number, input: InputHandler) {
     if (input.isPointerLocked) {
       this.playerAngle -= input.movementX * 0.002;
-      input.movementX = 0; // reset
+      input.movementX = 0;
     }
 
     const speed = (input.keys["shift"] ? 4.0 : 2.5) * dt;
     let dx = 0;
     let dy = 0;
 
-    if (input.keys["w"]) { dx += Math.cos(this.playerAngle) * speed; dy += Math.sin(this.playerAngle) * speed; }
-    if (input.keys["s"]) { dx -= Math.cos(this.playerAngle) * speed; dy -= Math.sin(this.playerAngle) * speed; }
-    if (input.keys["a"]) { dx += Math.cos(this.playerAngle - Math.PI/2) * speed; dy += Math.sin(this.playerAngle - Math.PI/2) * speed; }
-    if (input.keys["d"]) { dx += Math.cos(this.playerAngle + Math.PI/2) * speed; dy += Math.sin(this.playerAngle + Math.PI/2) * speed; }
+    if (input.keys["w"] || input.keys["arrowup"]) { dx += Math.cos(this.playerAngle) * speed; dy += Math.sin(this.playerAngle) * speed; }
+    if (input.keys["s"] || input.keys["arrowdown"]) { dx -= Math.cos(this.playerAngle) * speed; dy -= Math.sin(this.playerAngle) * speed; }
+    if (input.keys["a"] || input.keys["arrowleft"]) { dx += Math.cos(this.playerAngle - Math.PI / 2) * speed; dy += Math.sin(this.playerAngle - Math.PI / 2) * speed; }
+    if (input.keys["d"] || input.keys["arrowright"]) { dx += Math.cos(this.playerAngle + Math.PI / 2) * speed; dy += Math.sin(this.playerAngle + Math.PI / 2) * speed; }
 
-    // Collision
-    const margin = 0.2;
-    if (this.map[Math.floor(this.playerY)][Math.floor(this.playerX + dx + (dx>0?margin:-margin))] === 0) {
+    const margin = 0.25;
+    const nx = this.playerX + dx;
+    const ny = this.playerY + dy;
+    const mx = Math.floor(this.playerX);
+    const my = Math.floor(this.playerY);
+
+    const newMX = Math.floor(nx + (dx > 0 ? margin : -margin));
+    const newMY = Math.floor(ny + (dy > 0 ? margin : -margin));
+
+    if (newMX >= 0 && newMX < this.map[0]?.length && this.map[my]?.[newMX] === 0) {
       this.playerX += dx;
     }
-    if (this.map[Math.floor(this.playerY + dy + (dy>0?margin:-margin))][Math.floor(this.playerX)] === 0) {
+    if (newMY >= 0 && newMY < this.map.length && this.map[newMY]?.[mx] === 0) {
       this.playerY += dy;
     }
 
-    // Update Camera
-    this.camera.position.set(this.playerX, 1.5, this.playerY);
-    this.camera.rotation.y = -this.playerAngle + Math.PI/2;
+    this.bobTime += dt;
+    const isMoving = dx !== 0 || dy !== 0;
+    const bobAmount = isMoving ? Math.sin(this.bobTime * 8) * 0.04 : 0;
+
+    this.camera.position.set(this.playerX, 1.5 + bobAmount, this.playerY);
+    this.camera.rotation.y = -this.playerAngle + Math.PI / 2;
     this.camera.rotation.order = "YXZ";
 
-    // Update Flashlight
     if (this.isFlashlightOn) {
       this.flashlight.position.copy(this.camera.position);
       this.flashlight.target.position.set(
-        this.playerX + Math.cos(this.playerAngle),
+        this.playerX + Math.cos(this.playerAngle) * 10,
         1.5,
-        this.playerY + Math.sin(this.playerAngle)
+        this.playerY + Math.sin(this.playerAngle) * 10
       );
-      // Flicker
-      if (Math.random() < 0.05) this.flashlight.intensity = 1.5 + Math.random() * 1;
+      if (Math.random() < 0.02) this.flashlight.intensity = 1.5 + Math.random() * 1.5;
+      else if (Math.random() < 0.01) this.flashlight.intensity = 0.5;
+      else this.flashlight.intensity = 2.5;
     } else {
       this.flashlight.intensity = 0;
     }
 
-    // Exit pulse
     if (this.exitMesh) {
-      this.exitMesh.rotation.y += dt;
-      (this.exitMesh.material as THREE.MeshBasicMaterial).opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.3;
+      this.exitMesh.rotation.y += dt * 0.5;
+      (this.exitMesh.material as THREE.MeshBasicMaterial).opacity = 0.6 + Math.sin(Date.now() * 0.004) * 0.25;
     }
 
     this.renderer.render(this.scene, this.camera);
@@ -186,18 +213,74 @@ export class BackroomsEngine {
     return { x: this.playerX, y: this.playerY, angle: this.playerAngle };
   }
 
+  getExitPosition(): { x: number; y: number } | null {
+    return this.exitPosition;
+  }
+
+  getNearestMobInRange(mobs: Mob[], range: number): string | null {
+    let nearest: string | null = null;
+    let nearestDist = range;
+
+    for (const mob of mobs) {
+      if (!mob.isAlive) continue;
+      const dx = mob.x - this.playerX;
+      const dy = mob.y - this.playerY;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < nearestDist) {
+        const mobAngle = Math.atan2(dy, dx);
+        let angleDiff = mobAngle - this.playerAngle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        if (Math.abs(angleDiff) < Math.PI * 0.6) {
+          nearestDist = d;
+          nearest = mob.id;
+        }
+      }
+    }
+    return nearest;
+  }
+
+  isNearExit(): boolean {
+    if (!this.exitPosition) return false;
+    const dx = this.exitPosition.x - this.playerX;
+    const dy = this.exitPosition.y - this.playerY;
+    return Math.sqrt(dx * dx + dy * dy) < 1.5;
+  }
+
   toggleFlashlight() {
     this.isFlashlightOn = !this.isFlashlightOn;
   }
 
   playAttackAnimation() {
-    // Simple screen shake or FOV change
-    this.camera.fov = 70;
+    this.camera.fov = 72;
     this.camera.updateProjectionMatrix();
     setTimeout(() => {
       this.camera.fov = 66;
       this.camera.updateProjectionMatrix();
-    }, 100);
+    }, 120);
+  }
+
+  flashDamage() {
+    if (!this.damageOverlay) {
+      const geo = new THREE.PlaneGeometry(2, 2);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0,
+        depthTest: false,
+      });
+      this.damageOverlay = new THREE.Mesh(geo, mat);
+      this.damageOverlay.position.set(0, 0, -0.5);
+      this.camera.add(this.damageOverlay);
+      this.scene.add(this.camera);
+    }
+    const mat = this.damageOverlay.material as THREE.MeshBasicMaterial;
+    mat.opacity = 0.35;
+    const fade = () => {
+      mat.opacity = Math.max(0, mat.opacity - 0.05);
+      if (mat.opacity > 0) setTimeout(fade, 30);
+    };
+    setTimeout(fade, 60);
   }
 
   private onResize = () => {

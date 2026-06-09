@@ -11,9 +11,11 @@ interface GameContextType {
   isConnected: boolean;
   gameState: GameState | null;
   levelConfig: LevelConfig | null;
+  hasWon: boolean;
   setPlayerName: (name: string) => void;
   setRoomCode: (code: string | null) => void;
   joinRoom: (code: string, playerId: string) => void;
+  joinAndStartSolo: (code: string, playerId: string) => void;
   leaveRoom: () => void;
   startGame: () => void;
 }
@@ -29,6 +31,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [levelConfig, setLevelConfig] = useState<LevelConfig | null>(null);
+  const [hasWon, setHasWon] = useState<boolean>(false);
 
   const socketRef = useRef<Socket | null>(null);
 
@@ -45,22 +48,51 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setIsConnected(false);
     });
 
-    newSocket.on("room:updated", (roomData: Room) => {
-      // Room state updates for lobby
+    newSocket.on("room:updated", (_roomData: Room) => {
     });
 
-    newSocket.on("game:started", (data: { state: GameState, levelConfig: LevelConfig }) => {
+    newSocket.on("game:started", (data: { state: GameState; levelConfig: LevelConfig }) => {
       setGameState(data.state);
       setLevelConfig(data.levelConfig);
+      setHasWon(false);
     });
 
-    newSocket.on("game:tick", (data: { players: Player[], mobs: Mob[], tick: number }) => {
+    newSocket.on("game:tick", (data: { players: Player[]; mobs: Mob[]; tick: number }) => {
       setGameState(prev => prev ? { ...prev, players: data.players, mobs: data.mobs, tick: data.tick } : null);
     });
 
-    newSocket.on("level:advanced", (data: { newLevel: number, levelConfig: LevelConfig, state: GameState }) => {
+    newSocket.on("level:advanced", (data: { newLevel: number; levelConfig: LevelConfig; state: GameState }) => {
       setGameState(data.state);
       setLevelConfig(data.levelConfig);
+    });
+
+    newSocket.on("game:won", () => {
+      setHasWon(true);
+      setGameState(prev => prev ? { ...prev, status: "finished" } : null);
+    });
+
+    newSocket.on("mob:damaged", (data: { mobId: string; hp: number; isAlive: boolean }) => {
+      setGameState(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          mobs: prev.mobs.map(m =>
+            m.id === data.mobId ? { ...m, hp: data.hp, isAlive: data.isAlive } : m
+          ),
+        };
+      });
+    });
+
+    newSocket.on("mob:died", (data: { mobId: string }) => {
+      setGameState(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          mobs: prev.mobs.map(m =>
+            m.id === data.mobId ? { ...m, isAlive: false } : m
+          ),
+        };
+      });
     });
 
     return () => {
@@ -76,10 +108,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const joinAndStartSolo = (code: string, id: string) => {
+    setRoomCode(code);
+    setPlayerId(id);
+    if (socketRef.current) {
+      socketRef.current.emit("room:join", { code, playerId: id }, (ack: { ok?: boolean; error?: string }) => {
+        if (ack?.ok) {
+          socketRef.current?.emit("game:start", { code, playerId: id });
+        }
+      });
+    }
+  };
+
   const leaveRoom = () => {
     setRoomCode(null);
     setGameState(null);
     setLevelConfig(null);
+    setHasWon(false);
   };
 
   const startGame = () => {
@@ -99,9 +144,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         isConnected,
         gameState,
         levelConfig,
+        hasWon,
         setPlayerName,
         setRoomCode,
         joinRoom,
+        joinAndStartSolo,
         leaveRoom,
         startGame,
       }}

@@ -1,0 +1,3 @@
+- [The Liminal game stack](the-liminal-stack.md) — React+Vite+Three.js frontend (port 5000) + Express+Socket.io API (port 8080), pnpm monorepo.
+- [Solo mode fix](solo-mode-fix.md) — joinAndStartSolo() in GameContext uses socket ack chain to join then start; SoloSetup navigates via useEffect watching gameState.
+- [Workflow ports](workflow-ports.md) — Replit workflows only support specific ports; frontend uses 5000 (not 19682), API uses 8080.

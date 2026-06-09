@@ -7,34 +7,25 @@ export default function MainMenu() {
   const { leaveRoom } = useGameStore();
   const [showCredits, setShowCredits] = useState(false);
 
-  // Reset state on mount
   useState(() => { leaveRoom(); });
 
   return (
     <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center overflow-hidden bg-[#0a0a06]">
-      {/* Animated corridor background using CSS */}
       <div className="absolute inset-0 overflow-hidden">
-        {/* Perspective corridor layers */}
         <div className="corridor-bg" />
-        {/* Flickering fluorescent light overlay */}
         <div className="absolute inset-0 flicker-overlay" />
-        {/* Film grain */}
         <div className="absolute inset-0 grain-overlay opacity-30" />
-        {/* Vignette */}
-        <div className="absolute inset-0 bg-radial-[ellipse_at_center] from-transparent via-transparent to-black/90 pointer-events-none" />
+        <div className="absolute inset-0 pointer-events-none" style={{background:"radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.92) 100%)"}} />
       </div>
 
-      {/* Scanlines */}
       <div className="absolute inset-0 scanlines pointer-events-none z-10" />
 
-      {/* Main content */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 1, ease: "easeOut" }}
         className="z-20 flex flex-col items-center gap-2"
       >
-        {/* Subtitle */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.6 }}
@@ -44,7 +35,6 @@ export default function MainMenu() {
           ENTREZ SI VOUS L'OSEZ
         </motion.p>
 
-        {/* Title */}
         <h1
           className="text-6xl md:text-8xl font-title text-primary tracking-widest mb-2 relative"
           style={{
@@ -52,13 +42,19 @@ export default function MainMenu() {
             filter: "drop-shadow(0 0 30px rgba(200,180,96,0.4))",
           }}
         >
-          THE BACKROOMS
+          THE LIMINAL
         </h1>
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.4 }}
+          transition={{ delay: 0.5, duration: 1.5 }}
+          className="text-primary/40 tracking-[0.4em] uppercase text-xs font-mono"
+        >
+          ESPACES ENTRE LES MONDES
+        </motion.p>
 
-        {/* Divider */}
         <div className="w-64 h-px bg-primary/30 my-6" />
 
-        {/* Nav */}
         <div className="flex flex-col gap-3 w-72">
           {[
             { href: "/solo", label: "JOUER EN SOLO", delay: 0.3 },
@@ -95,18 +91,16 @@ export default function MainMenu() {
           </motion.div>
         </div>
 
-        {/* Hint */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.3 }}
           transition={{ delay: 2.5, duration: 2 }}
           className="text-primary/30 text-xs tracking-widest mt-8 font-mono"
         >
-          20 NIVEAUX • SOLO & MULTIJOUEUR • MODO CAUCHEMAR
+          20 NIVEAUX • SOLO &amp; MULTIJOUEUR • MODE CAUCHEMAR
         </motion.p>
       </motion.div>
 
-      {/* Footer */}
       <div className="absolute bottom-4 right-6 text-primary/30 text-xs tracking-widest z-20 font-mono">
         Created by Astral
       </div>
@@ -114,7 +108,6 @@ export default function MainMenu() {
         v1.0
       </div>
 
-      {/* Credits modal */}
       <AnimatePresence>
         {showCredits && (
           <motion.div
@@ -135,12 +128,12 @@ export default function MainMenu() {
               <div className="space-y-4 text-primary/70 font-mono text-sm">
                 <div>
                   <p className="text-primary text-xl font-bold tracking-widest">ASTRAL</p>
-                  <p className="text-primary/50 text-xs mt-1">CRÉATEUR & DÉVELOPPEUR</p>
+                  <p className="text-primary/50 text-xs mt-1">CRÉATEUR &amp; DÉVELOPPEUR</p>
                 </div>
                 <div className="w-32 h-px bg-primary/20 mx-auto" />
                 <p className="text-xs leading-relaxed text-primary/40">
-                  The Backrooms — Inspiré des créepypastas et de la mythologie des espaces liminaux.<br />
-                  20 niveaux. Des monstres. Pas de pitié.
+                  The Liminal — Un voyage dans les espaces oubliés entre les mondes.<br />
+                  20 niveaux. Des entités. Pas de pitié.
                 </p>
               </div>
               <button
