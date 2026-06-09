@@ -221,6 +221,9 @@ importers:
 
   artifacts/backrooms-game:
     dependencies:
+      '@babylonjs/core':
+        specifier: ^9.11.0
+        version: 9.11.0
       '@types/three':
         specifier: ^0.184.1
         version: 0.184.1
@@ -744,6 +747,9 @@ packages:
   '@babel/types@7.29.0':
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
+
+  '@babylonjs/core@9.11.0':
+    resolution: {integrity: sha512-MQH6Lop6Dn06n3gW8/CADb3FrO3jVudYHYZVu2TPNH0hXyJGAVPtVRpudF12UHn5ZV0ByQ1gu71vfKj88rFDCg==}
 
   '@commander-js/extra-typings@14.0.0':
     resolution: {integrity: sha512-hIn0ncNaJRLkZrxBIp5AsW/eXEHNKYQBh0aPdoUqNgD+Io3NIykQqpKFyKcuasZhicGaEZJX/JBSIkZ4e5x8Dg==}
@@ -3386,6 +3392,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@babylonjs/core@9.11.0': {}
 
   '@commander-js/extra-typings@14.0.0(commander@14.0.3)':
     dependencies:

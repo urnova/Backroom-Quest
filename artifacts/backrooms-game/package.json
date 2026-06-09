@@ -75,6 +75,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@babylonjs/core": "^9.11.0",
     "@types/three": "^0.184.1",
     "socket.io-client": "^4.8.3",
     "three": "^0.184.0"
