@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,6 +17,7 @@ import OptionsMenu from "./pages/OptionsMenu";
 import SkinSelector from "./pages/SkinSelector";
 import NotFound from "./pages/not-found";
 import CRTOverlay from "./components/CRTOverlay";
+import LoadingScreen from "./components/LoadingScreen";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +39,8 @@ function Router() {
 }
 
 function App() {
+  const [loaded, setLoaded] = useState(false);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -52,6 +56,8 @@ function App() {
         </SettingsProvider>
         <Toaster />
       </TooltipProvider>
+
+      {!loaded && <LoadingScreen onDone={() => setLoaded(true)} />}
     </QueryClientProvider>
   );
 }
