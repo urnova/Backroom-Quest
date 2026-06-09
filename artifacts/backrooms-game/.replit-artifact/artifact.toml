@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Backrooms Game"
+version = "1.0.0"
+id = "artifacts/backrooms-game"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19682
+
+[services.development]
+run = "pnpm --filter @workspace/backrooms-game run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/backrooms-game", "run", "build" ]
+publicDir = "artifacts/backrooms-game/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19682"
+BASE_PATH = "/"

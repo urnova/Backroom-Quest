@@ -1,15 +1,16 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Backrooms Game API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: rooms
+    description: Multiplayer room management
 paths:
   /healthz:
     get:
@@ -24,6 +25,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /rooms:
+    post:
+      operationId: createRoom
+      tags: [rooms]
+      summary: Create a multiplayer room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomCreate"
+      responses:
+        "201":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "400":
+          description: Bad request
+
+  /rooms/{code}:
+    get:
+      operationId: getRoom
+      tags: [rooms]
+      summary: Get room info by code
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Room info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "404":
+          description: Room not found
+
+  /rooms/{code}/join:
+    post:
+      operationId: joinRoom
+      tags: [rooms]
+      summary: Join a room with a pseudo
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinRoomInput"
+      responses:
+        "200":
+          description: Joined room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinResult"
+        "404":
+          description: Room not found
+        "400":
+          description: Room full or already started
+
+  /rooms/{code}/state:
+    get:
+      operationId: getRoomState
+      tags: [rooms]
+      summary: Get current game state for a room
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Game state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameState"
+        "404":
+          description: Room not found
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +128,155 @@ components:
       required:
         - status
 
+    Room:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        hostName:
+          type: string
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/Player"
+        maxPlayers:
+          type: integer
+        status:
+          type: string
+          enum: [waiting, playing, finished]
+        currentLevel:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - code
+        - hostName
+        - players
+        - maxPlayers
+        - status
+        - currentLevel
+        - createdAt
+
+    RoomCreate:
+      type: object
+      properties:
+        hostName:
+          type: string
+          minLength: 1
+          maxLength: 20
+        maxPlayers:
+          type: integer
+          minimum: 2
+          maximum: 8
+      required:
+        - hostName
+
+    JoinRoomInput:
+      type: object
+      properties:
+        playerName:
+          type: string
+          minLength: 1
+          maxLength: 20
+      required:
+        - playerName
+
+    JoinResult:
+      type: object
+      properties:
+        room:
+          $ref: "#/components/schemas/Room"
+        playerId:
+          type: string
+        playerName:
+          type: string
+      required:
+        - room
+        - playerId
+        - playerName
+
+    Player:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        level:
+          type: integer
+        hp:
+          type: integer
+        x:
+          type: number
+        y:
+          type: number
+        isAlive:
+          type: boolean
+        isHost:
+          type: boolean
+      required:
+        - id
+        - name
+        - level
+        - hp
+        - x
+        - y
+        - isAlive
+        - isHost
+
+    GameState:
+      type: object
+      properties:
+        roomCode:
+          type: string
+        currentLevel:
+          type: integer
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/Player"
+        mobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Mob"
+        status:
+          type: string
+          enum: [waiting, playing, finished]
+        tick:
+          type: integer
+      required:
+        - roomCode
+        - currentLevel
+        - players
+        - mobs
+        - status
+        - tick
+
+    Mob:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        hp:
+          type: integer
+        maxHp:
+          type: integer
+        isAlive:
+          type: boolean
+      required:
+        - id
+        - type
+        - x
+        - y
+        - hp
+        - maxHp
+        - isAlive
